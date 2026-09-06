@@ -1,0 +1,17 @@
+{
+  "name": "client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@discord/embedded-app-sdk": "^2.0.0",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "vite": "^5.2.9"
+  }
+}

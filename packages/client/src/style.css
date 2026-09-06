@@ -1,0 +1,316 @@
+:root {
+  --bg-color: #121212;
+  --card-bg: #1e1e1e;
+  --card-back-bg: #2c2c2c;
+  --accent: #bb86fc;
+  --text-primary: #e0e0e0;
+  --red-suit: #cf6679;
+  --black-suit: #e0e0e0;
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app {
+  width: 100%;
+  max-width: 1200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.table-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  position: relative;
+}
+
+.pile-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.pile-label {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.hand-area {
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: -20px;
+}
+
+/* Card Styles */
+.card {
+  width: 120px;
+  height: 180px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  border: 1px solid #333;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.card:not(.face-down):hover {
+  transform: translateY(-20px) scale(1.05);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.8);
+  border-color: var(--accent);
+  z-index: 10;
+}
+
+.card.red { color: var(--red-suit); }
+.card.black { color: var(--black-suit); }
+
+.card.face-down {
+  background: var(--card-back-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    #3c3c3c 10px,
+    #3c3c3c 20px
+  );
+  cursor: default;
+}
+.card.face-down > div { display: none; }
+
+.card-top {
+  align-self: flex-start;
+  font-size: 1.5rem;
+  font-weight: bold;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.card-center {
+  align-self: center;
+  font-size: 4rem;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.card-bottom {
+  align-self: flex-end;
+  font-size: 1.5rem;
+  font-weight: bold;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: rotate(180deg);
+  line-height: 1;
+}
+
+/* Specific larger card for the Enemy */
+.card.enemy {
+  width: 160px;
+  height: 240px;
+  border-color: var(--red-suit);
+  box-shadow: 0 0 20px rgba(207, 102, 121, 0.2);
+}
+.card.enemy .card-top, .card.enemy .card-bottom { font-size: 2rem; }
+.card.enemy .card-center { font-size: 6rem; }
+
+/* Discard Phase Prompt */
+.discard-prompt {
+  position: absolute;
+  bottom: 220px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(207, 102, 121, 0.9);
+  color: white;
+  padding: 15px 30px;
+  border-radius: 30px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  animation: pulsePrompt 1.5s infinite;
+  z-index: 20;
+}
+
+@keyframes pulsePrompt {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.05); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* Draw Animation */
+.animate-draw {
+  animation: drawCard 0.4s ease-out forwards;
+}
+
+@keyframes drawCard {
+  0% {
+    opacity: 0;
+    transform: translateY(100px) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card.selected {
+  transform: translateY(-20px) scale(1.05);
+  box-shadow: 0 12px 24px rgba(187, 134, 252, 0.8);
+  border-color: var(--accent);
+  z-index: 10;
+}
+
+.action-btn {
+  position: absolute;
+  bottom: 240px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--accent);
+  color: #121212;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+  z-index: 20;
+}
+.action-btn:hover:not(:disabled) {
+  background-color: #d1a8ff;
+  transform: translateX(-50%) scale(1.05);
+}
+.action-btn:disabled {
+  background-color: #555;
+  color: #888;
+  cursor: not-allowed;
+  transform: translateX(-50%);
+  box-shadow: none;
+}
+
+.card.disabled {
+  opacity: 0.4;
+  filter: grayscale(80%);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.card.disabled:hover {
+  transform: none;
+  border-color: #333;
+}
+
+::view-transition-group(*) {
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.menu-overlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+.menu-content {
+  background: var(--card-bg);
+  padding: 40px;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #333;
+}
+.menu-content button {
+  margin: 10px;
+  background-color: var(--accent);
+  color: #121212;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.card.jester {
+  color: #f1c40f;
+}
+
+#opponent-hands {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+.opponent-hand {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.opponent-name {
+  color: white;
+  font-weight: bold;
+  background: rgba(0,0,0,0.6);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.opponent-cards {
+  display: flex;
+  justify-content: center;
+}
+.opponent-cards .card {
+  transform: scale(0.6);
+  margin-left: -50px;
+}
+.opponent-cards .card:first-child {
+  margin-left: 0;
+}
+
+.hand-top {
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.hand-left {
+  top: 50%;
+  left: 20px;
+  transform: translateY(-50%) rotate(90deg);
+}
+.hand-right {
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%) rotate(-90deg);
+}

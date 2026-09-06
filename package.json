@@ -1,0 +1,25 @@
+{
+  "name": "discord-activity-starter",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A minimal starter project using embedded-app-sdk",
+  "main": "index.js",
+  "scripts": {
+    "dev": "pnpm run --filter \"./packages/**\" --parallel dev",
+    "tunnel": "ngrok http 3000 --url https://dismount-drudge-sixtieth.ngrok-free.dev"
+  },
+  "author": "Discord",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "nodemon": "^3.1.0",
+    "npm-run-all2": "^7.0.0",
+    "rimraf": "^6.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "~5.9.0"
+  }
+}
