@@ -74,19 +74,45 @@ function broadcastState(roomId: string) {
 }
 
 io.on('connection', (socket) => {
-	socket.on('joinRoom', (roomId, userName) => {
+	socket.on('joinRoom', (roomId, userName, userId) => {
 		socket.join(roomId);
 		let state = rooms.get(roomId);
 		if (!state) state = createRoom(roomId);
 		
-		if (state.status === 'LOBBY' && !state.players.find(p => p.id === socket.id)) {
-			// Limit to 4 players max
-			if (state.players.length < 4) {
-				state.players.push({ id: socket.id, name: userName || 'Player', hand: [] });
-			}
+		// Check for reconnection by persistent userId or socket.id
+		const existingPlayer = state.players.find(p => (userId && p.userId === userId) || p.id === socket.id);
+		if (existingPlayer) {
+			existingPlayer.id = socket.id;
+			if (userName) existingPlayer.name = userName;
+		} else if (state.status === 'LOBBY' && state.players.length < 4) {
+			state.players.push({
+				id: socket.id,
+				userId: userId || socket.id,
+				name: userName || 'Player',
+				hand: []
+			});
 		}
 		
+		// Always send current state directly to this socket so it never hangs
+		socket.emit('gameState', getMaskedState(state, socket.id));
+		// Broadcast updated state to all other players in the room
 		broadcastState(roomId);
+	});
+
+	socket.on('disconnect', () => {
+		for (const [roomId, state] of rooms.entries()) {
+			if (state.status === 'LOBBY') {
+				const index = state.players.findIndex(p => p.id === socket.id);
+				if (index !== -1) {
+					state.players.splice(index, 1);
+					if (state.players.length === 0) {
+						rooms.delete(roomId);
+					} else {
+						broadcastState(roomId);
+					}
+				}
+			}
+		}
 	});
 
 	socket.on('startGame', (roomId) => {

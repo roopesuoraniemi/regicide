@@ -55,6 +55,20 @@ function useSoloJester() {
 	selectedCardIndices = [];
 }
 
+// Check URL search parameters for custom room
+const urlParams = new URLSearchParams(window.location.search);
+const roomParam = urlParams.get('room');
+if (roomParam) {
+	roomId = roomParam;
+}
+
+// Persistent user ID across refreshes
+let persistentUserId = localStorage.getItem('regicide_user_id');
+if (!persistentUserId) {
+	persistentUserId = 'user_' + Math.random().toString(36).substring(2, 11);
+	localStorage.setItem('regicide_user_id', persistentUserId);
+}
+
 // --- DISCORD SDK & SOCKET ---
 setupDiscordSdk()
 	.catch((error) => {
@@ -69,7 +83,7 @@ async function setupDiscordSdk() {
 		renderStatus('Connecting to Discord...');
 		try {
 			await discordSdk.ready();
-			if (discordSdk.instanceId) roomId = discordSdk.instanceId;
+			if (discordSdk.instanceId && !roomParam) roomId = discordSdk.instanceId;
 			
 			renderStatus('Authorizing with Discord...');
 			const { code } = await discordSdk.commands.authorize({
@@ -95,12 +109,13 @@ async function setupDiscordSdk() {
 			const auth = await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
 			if (!auth) throw new Error('Discord SDK authenticate failed');
 			userName = auth.user.username;
+			persistentUserId = auth.user.id;
 		} catch (e: any) {
 			console.warn("Discord SDK authentication failed, proceeding with fallback session:", e);
 			renderStatus('Discord authorization skipped. Connecting as guest...', false, e?.message);
 		}
 	} else {
-		console.log("Running in standalone browser (mock SDK mode). Default room:", roomId);
+		console.log("Running in standalone browser. Room:", roomId);
 	}
 
 	renderStatus('Connecting to Regicide server...');
@@ -109,7 +124,7 @@ async function setupDiscordSdk() {
 	socket.on('connect', () => {
 		myPlayerId = socket.id || '';
 		renderStatus('Connected! Entering lobby...');
-		socket.emit('joinRoom', roomId, userName);
+		socket.emit('joinRoom', roomId, userName, persistentUserId);
 	});
 
 	socket.on('connect_error', (err) => {
@@ -254,10 +269,14 @@ function renderRegicideBoard() {
 		app.innerHTML = `
 			<div class="menu-overlay">
 				<div class="menu-content">
-					<h1 style="color: var(--red-suit); font-size: 3rem; margin-bottom: 20px;">REGICIDE LOBBY</h1>
-					<p style="margin-bottom: 30px;">${serverState.players.length} / 4 Players connected.</p>
-					${serverState.players.map((p:any) => `<div>${p.name} ${p.id === myPlayerId ? '(You)' : ''}</div>`).join('')}
-					<br/>
+					<h1 style="color: var(--red-suit); font-size: 3rem; margin-bottom: 15px;">REGICIDE LOBBY</h1>
+					<p style="margin-bottom: 5px; font-size: 1.1rem;">${serverState.players.length} / 4 Players connected</p>
+					<p style="margin-bottom: 20px; font-size: 0.85rem; color: #888;">
+						Room: <span style="color: #bbb; font-family: monospace; user-select: all;">${roomId}</span>
+					</p>
+					<div style="margin-bottom: 20px; line-height: 1.6;">
+						${serverState.players.map((p:any) => `<div>${p.name} ${p.id === myPlayerId ? '(You)' : ''}</div>`).join('')}
+					</div>
 					<button id="btn-start">Start Game</button>
 				</div>
 			</div>

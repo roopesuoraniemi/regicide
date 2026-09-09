@@ -18,6 +18,7 @@ export interface Enemy extends Card {
 
 export interface Player {
 	id: string; // Socket ID
+	userId?: string; // Persistent user ID
 	name: string; // Discord username or fallback
 	hand: Card[];
 }
