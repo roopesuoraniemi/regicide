@@ -331,7 +331,13 @@ body {
   font-size: 0.9rem;
   color: #aaa;
 }
-.player-name-box input {
+.player-name-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.player-name-input-row input {
+  flex: 1;
   background: #121212;
   border: 1px solid #444;
   color: #fff;
@@ -341,7 +347,7 @@ body {
   outline: none;
   transition: border-color 0.2s;
 }
-.player-name-box input:focus {
+.player-name-input-row input:focus {
   border-color: var(--accent);
 }
 .lobbies-grid {
@@ -514,12 +520,74 @@ body {
   font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 .btn-choose-player:hover {
   background: #3a3a3a;
   border-color: var(--accent);
   color: #fff;
+}
+
+/* Player Avatar Styles */
+.player-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #444;
+  vertical-align: middle;
+  background-color: #222;
+  flex-shrink: 0;
+}
+.player-avatar-small {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #555;
+  vertical-align: middle;
+  background-color: #222;
+  flex-shrink: 0;
+}
+.player-avatar-large {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent);
+  background-color: #222;
+  flex-shrink: 0;
+}
+.opponent-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.lobby-players-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.lobby-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #222;
+  border: 1px solid #333;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+.lobby-empty-hint {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 4px;
 }
 
 

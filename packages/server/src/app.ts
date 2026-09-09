@@ -87,7 +87,10 @@ function getLobbiesSummary() {
 			maxPlayers: 4,
 			status: state.status,
 			isJoinable: !isPlaying && state.players.length < 4,
-			players: state.players.map(p => p.name),
+			players: state.players.map(p => ({
+				name: p.name,
+				avatarUrl: p.avatarUrl,
+			})),
 		};
 	});
 }
@@ -115,7 +118,7 @@ io.on('connection', (socket) => {
 		socket.emit('lobbiesList', getLobbiesSummary());
 	});
 
-	socket.on('joinRoom', (roomId, userName, userId) => {
+	socket.on('joinRoom', (roomId, userName, userId, avatarUrl) => {
 		let state = rooms.get(roomId);
 		if (!state) state = createRoom(roomId);
 		
@@ -130,6 +133,7 @@ io.on('connection', (socket) => {
 		if (existingPlayer) {
 			existingPlayer.id = socket.id;
 			if (userName) existingPlayer.name = userName;
+			if (avatarUrl) existingPlayer.avatarUrl = avatarUrl;
 		} else {
 			// New player joining: enforce rules
 			if (state.status === 'PLAYING') {
@@ -144,6 +148,7 @@ io.on('connection', (socket) => {
 				id: socket.id,
 				userId: userId || socket.id,
 				name: userName || 'Player',
+				avatarUrl: avatarUrl || '',
 				hand: []
 			});
 		}

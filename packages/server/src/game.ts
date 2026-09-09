@@ -20,6 +20,7 @@ export interface Player {
 	id: string; // Socket ID
 	userId?: string; // Persistent user ID
 	name: string; // Discord username or fallback
+	avatarUrl?: string; // Discord profile picture or default avatar
 	hand: Card[];
 }
 
@@ -360,6 +361,7 @@ export function getMaskedState(state: GameState, playerId: string) {
 			return {
 				id: p.id,
 				name: p.name,
+				avatarUrl: p.avatarUrl,
 				handCount: p.hand.length,
 				hand: p.hand.map((_, i) => ({ id: `hidden-${p.id}-${i}` })) // Masked hand
 			};

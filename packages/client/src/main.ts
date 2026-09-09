@@ -13,6 +13,16 @@ let serverState: any = null;
 let selectedCardIndices: number[] = [];
 let lobbyErrorMessage: string | null = null;
 
+// Fallback avatar (basic head silhouette base64 SVG data URI - immune to HTML attribute quoting issues)
+const DEFAULT_AVATAR = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiIGZpbGw9IiMyNjI2MjYiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjI0IiByPSIxMSIgZmlsbD0iIzg4ODg4OCIvPjxwYXRoIGQ9Ik0xNSA1MmMwLTkuNCA3LjYtMTcgMTctMTdzMTcgNy42IDE3IDE3IiBmaWxsPSIjODg4ODg4Ii8+PC9zdmc+`;
+
+let storedAvatar = localStorage.getItem('regicide_player_avatar');
+if (storedAvatar && (storedAvatar.includes('<svg') || storedAvatar.includes('"'))) {
+	localStorage.removeItem('regicide_player_avatar');
+	storedAvatar = null;
+}
+let playerAvatar = storedAvatar || DEFAULT_AVATAR;
+
 // Persistent user ID and player name across refreshes
 let persistentUserId = localStorage.getItem('regicide_user_id');
 if (!persistentUserId) {
@@ -68,7 +78,10 @@ function renderLobbiesScreen() {
 
 				<div class="player-name-box">
 					<label for="player-name-input">Your Player Name:</label>
-					<input type="text" id="player-name-input" maxlength="20" value="${playerName}" placeholder="Enter your name..." />
+					<div class="player-name-input-row">
+						<img class="player-avatar-large" src="${playerAvatar}" alt="Your Avatar" title="Player Avatar" />
+						<input type="text" id="player-name-input" maxlength="20" value="${playerName}" placeholder="Enter your name..." />
+					</div>
 				</div>
 
 				<div class="lobbies-grid">
@@ -94,10 +107,6 @@ function renderLobbiesScreen() {
 							btnDisabled = true;
 						}
 
-						const playersList = lobby.players && lobby.players.length > 0 
-							? `Players: ${lobby.players.join(', ')}` 
-							: 'Empty lobby (waiting for players)';
-
 						return `
 							<div class="lobby-card ${!isOpen ? 'is-unjoinable' : ''}">
 								<div class="lobby-info">
@@ -105,7 +114,17 @@ function renderLobbiesScreen() {
 										<span>${lobby.name}</span>
 										<span class="badge ${badgeClass}">${badgeText}</span>
 									</div>
-									<div class="lobby-subtitle">${lobby.playerCount} / 4 Players • ${playersList}</div>
+									<div class="lobby-subtitle">${lobby.playerCount} / 4 Players</div>
+									${lobby.players && lobby.players.length > 0 ? `
+										<div class="lobby-players-list">
+											${lobby.players.map((p: any) => `
+												<span class="lobby-player-chip">
+													<img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${p.name}" />
+													<span>${p.name}</span>
+												</span>
+											`).join('')}
+										</div>
+									` : `<div class="lobby-empty-hint">Waiting for players</div>`}
 								</div>
 								<button class="btn-join" data-lobby-id="${lobby.id}" ${btnDisabled ? 'disabled' : ''}>
 									${btnText}
@@ -148,7 +167,7 @@ function joinLobby(lobbyId: string) {
 	roomId = lobbyId;
 	currentLobbyName = lobbyId === 'lobby-1' ? 'Lobby 1' : lobbyId === 'lobby-2' ? 'Lobby 2' : lobbyId === 'lobby-3' ? 'Lobby 3' : lobbyId;
 	renderStatus(`Joining ${currentLobbyName}...`);
-	socket.emit('joinRoom', lobbyId, playerName, persistentUserId);
+	socket.emit('joinRoom', lobbyId, playerName, persistentUserId, playerAvatar);
 }
 
 function leaveLobby() {
@@ -234,11 +253,20 @@ async function setupDiscordSdk() {
 
 			const auth = await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
 			if (!auth) throw new Error('Discord SDK authenticate failed');
-			if (auth.user.username) {
-				playerName = auth.user.username;
-				localStorage.setItem('regicide_player_name', playerName);
+			if (auth.user) {
+				if (auth.user.username) {
+					playerName = auth.user.username;
+					localStorage.setItem('regicide_player_name', playerName);
+				}
+				persistentUserId = auth.user.id;
+				if (auth.user.avatar) {
+					playerAvatar = `https://cdn.discordapp.com/avatars/${auth.user.id}/${auth.user.avatar}.png?size=128`;
+				} else if (auth.user.id) {
+					const defaultIndex = Number((BigInt(auth.user.id) >> 22n) % 6n);
+					playerAvatar = `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+				}
+				localStorage.setItem('regicide_player_avatar', playerAvatar);
 			}
-			persistentUserId = auth.user.id;
 		} catch (e: any) {
 			console.warn("Discord SDK authentication failed, proceeding with fallback session:", e);
 			renderStatus('Discord authorization skipped. Connecting as guest...', false, e?.message);
@@ -381,16 +409,19 @@ function updateButtons() {
 					<div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
 						${serverState.players.map((p: any) => `
 							<button class="btn-choose-player" data-player-id="${p.id}">
-								${p.name} ${p.id === myPlayerId ? '(You)' : ''}
+								<img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${p.name}" />
+								<span>${p.name} ${p.id === myPlayerId ? '(You)' : ''}</span>
 							</button>
 						`).join('')}
 					</div>
 				</div>
 			`;
 		} else {
+			const activeP = serverState.players[serverState.activePlayerIndex];
 			buttonHtml = `
-				<div class="discard-prompt jester-prompt" style="bottom: 250px;">
-					<span style="color: #aaa;">Jester played • Waiting for <strong>${serverState.players[serverState.activePlayerIndex]?.name || 'active player'}</strong> to choose who goes next...</span>
+				<div class="discard-prompt jester-prompt" style="bottom: 250px; display: flex; align-items: center; gap: 8px;">
+					<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
+					<span style="color: #aaa;">Jester played • Waiting for <strong>${activeP?.name || 'active player'}</strong> to choose who goes next...</span>
 				</div>
 			`;
 		}
@@ -421,7 +452,13 @@ function updateButtons() {
 		const yieldBtn = isMyTurn ? `<button class="action-btn" id="yield-btn" style="left: calc(50% + 150px); background: #333; color: white;">Yield</button>` : '';
 		const jesterBtn = (isMyTurn && serverState.soloJestersRemaining > 0) ? `<button class="action-btn" id="jester-btn" style="left: calc(50% - 180px); background: #f1c40f;">Solo Jester (${serverState.soloJestersRemaining})</button>` : '';
 
-		const turnText = isMyTurn ? '' : `<div class="discard-prompt" style="bottom: 300px; background: #333;">Waiting for ${serverState.players[serverState.activePlayerIndex].name}'s turn...</div>`;
+		const activeP = serverState.players[serverState.activePlayerIndex];
+		const turnText = isMyTurn ? '' : `
+			<div class="discard-prompt" style="bottom: 300px; background: #222; border: 1px solid #444; display: flex; align-items: center; gap: 8px;">
+				<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
+				<span>Waiting for ${activeP?.name || 'player'}'s turn...</span>
+			</div>
+		`;
 
 		buttonHtml = `
 			${turnText}
@@ -465,8 +502,15 @@ function renderRegicideBoard() {
 						Waiting in room: <span style="color: #bbb; font-family: monospace;">${roomId}</span>
 					</p>
 					<div style="margin-bottom: 22px; line-height: 1.8; background: #1a1a1a; padding: 14px 18px; border-radius: 8px; border: 1px solid #333; text-align: left;">
-						<div style="font-size: 0.8rem; text-transform: uppercase; color: #777; margin-bottom: 6px; font-weight: bold;">Party Members</div>
-						${serverState.players.map((p:any) => `<div>👤 ${p.name} ${p.id === myPlayerId ? '<span style="color: var(--accent); font-size: 0.85rem; font-weight: bold;">(You)</span>' : ''}</div>`).join('')}
+						<div style="font-size: 0.8rem; text-transform: uppercase; color: #777; margin-bottom: 10px; font-weight: bold;">Party Members</div>
+						<div style="display: flex; flex-direction: column; gap: 8px;">
+							${serverState.players.map((p:any) => `
+								<div style="display: flex; align-items: center; gap: 10px;">
+									<img class="player-avatar" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${p.name}" />
+									<span style="font-weight: 500;">${p.name} ${p.id === myPlayerId ? '<span style="color: var(--accent); font-size: 0.85rem; font-weight: bold;">(You)</span>' : ''}</span>
+								</div>
+							`).join('')}
+						</div>
 					</div>
 					<div style="display: flex; gap: 12px; justify-content: center;">
 						<button id="btn-start" style="padding: 10px 24px; font-size: 1.05rem; cursor: pointer; border-radius: 6px; background: var(--accent); color: #121212; font-weight: bold; border: none;">Start Game</button>
@@ -539,7 +583,8 @@ function renderRegicideBoard() {
 		<div class="table-area" id="table-area"></div>
 		<div id="opponent-hands"></div>
 		<div class="self-player-bar">
-			<span class="self-name">👤 ${myPlayer.name} (You)</span>
+			<img class="player-avatar-small" src="${myPlayer.avatarUrl || playerAvatar || DEFAULT_AVATAR}" alt="${myPlayer.name}" />
+			<span class="self-name">${myPlayer.name} (You)</span>
 			${isMyTurn ? '<span class="active-turn-badge">Your Turn</span>' : ''}
 		</div>
 		<div class="hand-area" id="hand-area"></div>
@@ -653,7 +698,7 @@ function renderOpponentHands(myIndex: number) {
 		
 		const p = serverState.players[i];
 		html += `<div class="opponent-hand ${posClass}">`;
-		html += `<div class="opponent-name">${p.name}</div>`;
+		html += `<div class="opponent-name"><img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${p.name}" /><span>${p.name}</span></div>`;
 		html += `<div class="opponent-cards">`;
 		for(let c=0; c < p.handCount; c++) {
 			html += createCardHTML(p.hand[c], false, true);
