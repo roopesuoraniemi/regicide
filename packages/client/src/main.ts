@@ -3,10 +3,32 @@ import { io, Socket } from 'socket.io-client';
 import './style.css';
 
 let socket: Socket;
-let roomId = 'local-dev-room';
+let roomId = 'lobby-1';
+let currentRoomId: string | null = null;
+let currentLobbyName = 'Lobby 1';
+let currentView: 'LOADING' | 'LOBBY_SELECT' | 'ROOM' = 'LOADING';
+let lobbiesSummary: any[] = [];
 let myPlayerId = '';
 let serverState: any = null;
 let selectedCardIndices: number[] = [];
+let lobbyErrorMessage: string | null = null;
+
+// Persistent user ID and player name across refreshes
+let persistentUserId = localStorage.getItem('regicide_user_id');
+if (!persistentUserId) {
+	persistentUserId = 'user_' + Math.random().toString(36).substring(2, 11);
+	localStorage.setItem('regicide_user_id', persistentUserId);
+}
+
+let playerName = localStorage.getItem('regicide_player_name') || `Player ${Math.floor(100 + Math.random() * 900)}`;
+
+// Check URL search parameters for custom room
+const urlParams = new URLSearchParams(window.location.search);
+const roomParam = urlParams.get('room');
+if (roomParam) {
+	roomId = roomParam;
+	currentRoomId = roomParam;
+}
 
 function renderStatus(message: string, isError = false, details?: string) {
 	const app = document.querySelector<HTMLDivElement>('#app');
@@ -26,6 +48,122 @@ function renderStatus(message: string, isError = false, details?: string) {
 	const retryBtn = document.getElementById('btn-retry');
 	if (retryBtn) {
 		retryBtn.addEventListener('click', () => window.location.reload());
+	}
+}
+
+function renderLobbiesScreen() {
+	currentView = 'LOBBY_SELECT';
+	currentRoomId = null;
+	serverState = null;
+	const app = document.querySelector<HTMLDivElement>('#app');
+	if (!app) return;
+
+	app.innerHTML = `
+		<div class="menu-overlay">
+			<div class="menu-content lobby-browser">
+				<h1 style="color: var(--red-suit); font-size: 2.8rem; margin-bottom: 5px; letter-spacing: 2px;">REGICIDE</h1>
+				<p style="color: #888; font-size: 0.95rem; margin-bottom: 25px;">Select a lobby to join the battle against the court</p>
+
+				${lobbyErrorMessage ? `<div style="background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; color: #ff9e9e; padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 500;">⚠️ ${lobbyErrorMessage}</div>` : ''}
+
+				<div class="player-name-box">
+					<label for="player-name-input">Your Player Name:</label>
+					<input type="text" id="player-name-input" maxlength="20" value="${playerName}" placeholder="Enter your name..." />
+				</div>
+
+				<div class="lobbies-grid">
+					${lobbiesSummary.map(lobby => {
+						const isOpen = lobby.isJoinable;
+						const isPlaying = lobby.status !== 'LOBBY';
+						const isFull = lobby.status === 'LOBBY' && lobby.playerCount >= 4;
+						
+						let badgeClass = 'badge-open';
+						let badgeText = 'Open';
+						let btnText = 'Join';
+						let btnDisabled = false;
+
+						if (isPlaying) {
+							badgeClass = 'badge-playing';
+							badgeText = 'In Game';
+							btnText = 'Playing';
+							btnDisabled = true;
+						} else if (isFull) {
+							badgeClass = 'badge-full';
+							badgeText = 'Full';
+							btnText = 'Full';
+							btnDisabled = true;
+						}
+
+						const playersList = lobby.players && lobby.players.length > 0 
+							? `Players: ${lobby.players.join(', ')}` 
+							: 'Empty lobby (waiting for players)';
+
+						return `
+							<div class="lobby-card ${!isOpen ? 'is-unjoinable' : ''}">
+								<div class="lobby-info">
+									<div class="lobby-title">
+										<span>${lobby.name}</span>
+										<span class="badge ${badgeClass}">${badgeText}</span>
+									</div>
+									<div class="lobby-subtitle">${lobby.playerCount} / 4 Players • ${playersList}</div>
+								</div>
+								<button class="btn-join" data-lobby-id="${lobby.id}" ${btnDisabled ? 'disabled' : ''}>
+									${btnText}
+								</button>
+							</div>
+						`;
+					}).join('')}
+				</div>
+
+				<p style="font-size: 0.8rem; color: #666; margin-top: 15px;">
+					Games in progress cannot be joined until the match completes or is reset.
+				</p>
+			</div>
+		</div>
+	`;
+
+	const nameInput = document.getElementById('player-name-input') as HTMLInputElement;
+	if (nameInput) {
+		nameInput.addEventListener('input', (e) => {
+			const target = e.target as HTMLInputElement;
+			playerName = target.value.trim() || 'Player';
+			localStorage.setItem('regicide_player_name', playerName);
+		});
+	}
+
+	const joinButtons = document.querySelectorAll('.btn-join:not(:disabled)');
+	joinButtons.forEach(btn => {
+		btn.addEventListener('click', () => {
+			const lobbyId = btn.getAttribute('data-lobby-id');
+			if (lobbyId) {
+				joinLobby(lobbyId);
+			}
+		});
+	});
+}
+
+function joinLobby(lobbyId: string) {
+	lobbyErrorMessage = null;
+	currentRoomId = lobbyId;
+	roomId = lobbyId;
+	currentLobbyName = lobbyId === 'lobby-1' ? 'Lobby 1' : lobbyId === 'lobby-2' ? 'Lobby 2' : lobbyId === 'lobby-3' ? 'Lobby 3' : lobbyId;
+	renderStatus(`Joining ${currentLobbyName}...`);
+	socket.emit('joinRoom', lobbyId, playerName, persistentUserId);
+}
+
+function leaveLobby() {
+	if (currentRoomId) {
+		socket.emit('leaveRoom', currentRoomId);
+	}
+	currentRoomId = null;
+	serverState = null;
+	renderLobbiesScreen();
+	socket.emit('getLobbies');
+}
+
+function resetCurrentLobby() {
+	if (currentRoomId) {
+		socket.emit('resetLobby', currentRoomId);
 	}
 }
 
@@ -55,20 +193,6 @@ function useSoloJester() {
 	selectedCardIndices = [];
 }
 
-// Check URL search parameters for custom room
-const urlParams = new URLSearchParams(window.location.search);
-const roomParam = urlParams.get('room');
-if (roomParam) {
-	roomId = roomParam;
-}
-
-// Persistent user ID across refreshes
-let persistentUserId = localStorage.getItem('regicide_user_id');
-if (!persistentUserId) {
-	persistentUserId = 'user_' + Math.random().toString(36).substring(2, 11);
-	localStorage.setItem('regicide_user_id', persistentUserId);
-}
-
 // --- DISCORD SDK & SOCKET ---
 setupDiscordSdk()
 	.catch((error) => {
@@ -77,13 +201,10 @@ setupDiscordSdk()
 	});
 
 async function setupDiscordSdk() {
-	let userName = `Player ${Math.floor(100 + Math.random() * 900)}`;
-	
 	if (isEmbedded) {
 		renderStatus('Connecting to Discord...');
 		try {
 			await discordSdk.ready();
-			if (discordSdk.instanceId && !roomParam) roomId = discordSdk.instanceId;
 			
 			renderStatus('Authorizing with Discord...');
 			const { code } = await discordSdk.commands.authorize({
@@ -108,14 +229,15 @@ async function setupDiscordSdk() {
 
 			const auth = await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
 			if (!auth) throw new Error('Discord SDK authenticate failed');
-			userName = auth.user.username;
+			if (auth.user.username) {
+				playerName = auth.user.username;
+				localStorage.setItem('regicide_player_name', playerName);
+			}
 			persistentUserId = auth.user.id;
 		} catch (e: any) {
 			console.warn("Discord SDK authentication failed, proceeding with fallback session:", e);
 			renderStatus('Discord authorization skipped. Connecting as guest...', false, e?.message);
 		}
-	} else {
-		console.log("Running in standalone browser. Room:", roomId);
 	}
 
 	renderStatus('Connecting to Regicide server...');
@@ -123,8 +245,31 @@ async function setupDiscordSdk() {
 	
 	socket.on('connect', () => {
 		myPlayerId = socket.id || '';
-		renderStatus('Connected! Entering lobby...');
-		socket.emit('joinRoom', roomId, userName, persistentUserId);
+		if (roomParam) {
+			joinLobby(roomParam);
+		} else {
+			socket.emit('getLobbies');
+		}
+	});
+
+	socket.on('lobbiesList', (lobbies) => {
+		lobbiesSummary = lobbies;
+		if (currentView === 'LOBBY_SELECT' || currentView === 'LOADING') {
+			renderLobbiesScreen();
+		}
+	});
+
+	socket.on('joinError', (errMsg) => {
+		lobbyErrorMessage = errMsg;
+		renderLobbiesScreen();
+		socket.emit('getLobbies');
+	});
+
+	socket.on('leftRoom', () => {
+		currentRoomId = null;
+		serverState = null;
+		renderLobbiesScreen();
+		socket.emit('getLobbies');
 	});
 
 	socket.on('connect_error', (err) => {
@@ -139,6 +284,10 @@ async function setupDiscordSdk() {
 
 	socket.on('gameState', (state) => {
 		serverState = state;
+		currentView = 'ROOM';
+		currentRoomId = state.roomId;
+		roomId = state.roomId;
+		currentLobbyName = roomId === 'lobby-1' ? 'Lobby 1' : roomId === 'lobby-2' ? 'Lobby 2' : roomId === 'lobby-3' ? 'Lobby 3' : roomId;
 		const myIndex = serverState.players.findIndex((p: any) => p.id === myPlayerId);
 		if (myIndex !== serverState.activePlayerIndex) {
 			selectedCardIndices = [];
@@ -268,43 +417,94 @@ function renderRegicideBoard() {
 	if (serverState.status === 'LOBBY') {
 		app.innerHTML = `
 			<div class="menu-overlay">
-				<div class="menu-content">
-					<h1 style="color: var(--red-suit); font-size: 3rem; margin-bottom: 15px;">REGICIDE LOBBY</h1>
-					<p style="margin-bottom: 5px; font-size: 1.1rem;">${serverState.players.length} / 4 Players connected</p>
-					<p style="margin-bottom: 20px; font-size: 0.85rem; color: #888;">
-						Room: <span style="color: #bbb; font-family: monospace; user-select: all;">${roomId}</span>
+				<div class="menu-content" style="max-width: 480px;">
+					<h1 style="color: var(--red-suit); font-size: 2.6rem; margin-bottom: 5px;">${currentLobbyName.toUpperCase()}</h1>
+					<p style="margin-bottom: 5px; font-size: 1.05rem;">${serverState.players.length} / 4 Players connected</p>
+					<p style="margin-bottom: 18px; font-size: 0.85rem; color: #888;">
+						Waiting in room: <span style="color: #bbb; font-family: monospace;">${roomId}</span>
 					</p>
-					<div style="margin-bottom: 20px; line-height: 1.6;">
-						${serverState.players.map((p:any) => `<div>${p.name} ${p.id === myPlayerId ? '(You)' : ''}</div>`).join('')}
+					<div style="margin-bottom: 22px; line-height: 1.8; background: #1a1a1a; padding: 14px 18px; border-radius: 8px; border: 1px solid #333; text-align: left;">
+						<div style="font-size: 0.8rem; text-transform: uppercase; color: #777; margin-bottom: 6px; font-weight: bold;">Party Members</div>
+						${serverState.players.map((p:any) => `<div>👤 ${p.name} ${p.id === myPlayerId ? '<span style="color: var(--accent); font-size: 0.85rem; font-weight: bold;">(You)</span>' : ''}</div>`).join('')}
 					</div>
-					<button id="btn-start">Start Game</button>
+					<div style="display: flex; gap: 12px; justify-content: center;">
+						<button id="btn-start" style="padding: 10px 24px; font-size: 1.05rem; cursor: pointer; border-radius: 6px; background: var(--accent); color: #121212; font-weight: bold; border: none;">Start Game</button>
+						<button id="btn-leave-lobby" class="btn-secondary" style="padding: 10px 20px; font-size: 1.05rem; cursor: pointer; border-radius: 6px;">Leave Lobby</button>
+					</div>
 				</div>
 			</div>
 		`;
 		
 		const btnStart = document.getElementById('btn-start');
 		if (btnStart) btnStart.addEventListener('click', () => socket.emit('startGame', roomId));
+
+		const btnLeaveLobby = document.getElementById('btn-leave-lobby');
+		if (btnLeaveLobby) btnLeaveLobby.addEventListener('click', () => leaveLobby());
+
 		return;
 	}
 
-	if (serverState.status === 'GAME_OVER_WIN') {
-		app.innerHTML = `<h1 style="color: gold; text-align: center; margin-top: 20vh; font-size: 4rem;">VICTORY!</h1>`;
-		return;
-	}
-	if (serverState.status === 'GAME_OVER_LOSS') {
-		app.innerHTML = `<h1 style="color: red; text-align: center; margin-top: 20vh; font-size: 4rem;">DEFEAT!</h1>`;
+	if (serverState.status === 'GAME_OVER_WIN' || serverState.status === 'GAME_OVER_LOSS') {
+		const isWin = serverState.status === 'GAME_OVER_WIN';
+		app.innerHTML = `
+			<div class="menu-overlay">
+				<div class="menu-content" style="max-width: 500px; text-align: center;">
+					<h1 style="color: ${isWin ? '#f1c40f' : '#cf6679'}; font-size: 3.5rem; margin-bottom: 10px;">
+						${isWin ? '👑 VICTORY!' : '💀 DEFEAT!'}
+					</h1>
+					<p style="color: #bbb; font-size: 1.1rem; margin-bottom: 25px;">
+						${isWin ? 'All 12 Castle Royals have been defeated! The realm is saved.' : 'The party fell before the court. Better luck next time!'}
+					</p>
+					<div style="display: flex; gap: 15px; justify-content: center;">
+						<button id="btn-play-again" style="padding: 12px 24px; font-size: 1.05rem; cursor: pointer; border-radius: 6px; background: var(--accent); color: #121212; font-weight: bold; border: none;">
+							Play Again
+						</button>
+						<button id="btn-return-lobbies" class="btn-secondary" style="padding: 12px 20px; font-size: 1.05rem; cursor: pointer; border-radius: 6px;">
+							Back to Lobbies
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+
+		const btnPlayAgain = document.getElementById('btn-play-again');
+		if (btnPlayAgain) {
+			btnPlayAgain.addEventListener('click', () => resetCurrentLobby());
+		}
+		const btnReturn = document.getElementById('btn-return-lobbies');
+		if (btnReturn) {
+			btnReturn.addEventListener('click', () => leaveLobby());
+		}
 		return;
 	}
 
 	let immunityTag = serverState.immunityCanceled ? '<div style="position: absolute; top: 10px; color: #f1c40f; font-weight: bold; font-size: 1.5rem;">Immunity Canceled!</div>' : '';
 
 	app.innerHTML = `
+		<div class="game-top-bar">
+			<span style="font-weight: bold; color: var(--accent); font-size: 1.05rem; letter-spacing: 0.5px;">${currentLobbyName}</span>
+			<button id="btn-reset-game" class="btn-small">Reset Game</button>
+			<button id="btn-leave-game" class="btn-small">Leave Game</button>
+		</div>
 		${immunityTag}
 		<div id="button-container"></div>
 		<div class="table-area" id="table-area"></div>
 		<div id="opponent-hands"></div>
 		<div class="hand-area" id="hand-area"></div>
 	`;
+
+	const btnReset = document.getElementById('btn-reset-game');
+	if (btnReset) {
+		btnReset.addEventListener('click', () => {
+			resetCurrentLobby();
+		});
+	}
+	const btnLeave = document.getElementById('btn-leave-game');
+	if (btnLeave) {
+		btnLeave.addEventListener('click', () => {
+			leaveLobby();
+		});
+	}
 
 	const myIndex = serverState.players.findIndex((p: any) => p.id === myPlayerId);
 	const myPlayer = serverState.players[myIndex];

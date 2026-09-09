@@ -66,6 +66,29 @@ export function createRoom(roomId: string): GameState {
 	return state;
 }
 
+export function resetRoom(roomId: string, keepPlayers: boolean = false): GameState {
+	const existing = rooms.get(roomId);
+	const players = keepPlayers && existing ? existing.players.map(p => ({ ...p, hand: [] })) : [];
+	const state: GameState = {
+		roomId,
+		status: 'LOBBY',
+		players,
+		activePlayerIndex: 0,
+		deck: [],
+		discard: [],
+		enemies: [],
+		currentEnemy: null,
+		gamePhase: 'PLAY',
+		damageToTake: 0,
+		currentShield: 0,
+		immunityCanceled: false,
+		maxHandSize: 8,
+		soloJestersRemaining: 0,
+	};
+	rooms.set(roomId, state);
+	return state;
+}
+
 function shuffle<T>(array: T[]): T[] {
 	const newArr = [...array];
 	for (let i = newArr.length - 1; i > 0; i--) {

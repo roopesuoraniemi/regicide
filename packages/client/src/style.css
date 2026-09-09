@@ -314,3 +314,141 @@ body {
   right: 20px;
   transform: translateY(-50%) rotate(-90deg);
 }
+
+/* --- LOBBY BROWSER STYLES --- */
+.lobby-browser {
+  width: 100%;
+  max-width: 600px;
+}
+.player-name-box {
+  margin-bottom: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.player-name-box label {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+.player-name-box input {
+  background: #121212;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.player-name-box input:focus {
+  border-color: var(--accent);
+}
+.lobbies-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.lobby-card {
+  background: #181818;
+  border: 1px solid #2e2e2e;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.lobby-card:hover {
+  border-color: #444;
+}
+.lobby-card.is-unjoinable {
+  opacity: 0.7;
+}
+.lobby-info {
+  text-align: left;
+}
+.lobby-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lobby-subtitle {
+  font-size: 0.9rem;
+  color: #888;
+  margin-top: 4px;
+}
+.badge {
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.badge-open {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.4);
+}
+.badge-playing {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+.badge-full {
+  background: rgba(243, 156, 18, 0.2);
+  color: #f39c12;
+  border: 1px solid rgba(243, 156, 18, 0.4);
+}
+.btn-join {
+  background-color: var(--accent);
+  color: #121212;
+  border: none;
+  padding: 8px 18px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-join:disabled {
+  background: #333;
+  color: #777;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background-color: #2a2a2a !important;
+  color: #ddd !important;
+  border: 1px solid #444 !important;
+}
+.btn-secondary:hover {
+  background-color: #383838 !important;
+}
+.game-top-bar {
+  position: absolute;
+  top: 15px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  z-index: 10;
+}
+.btn-small {
+  padding: 6px 12px !important;
+  font-size: 0.85rem !important;
+  border-radius: 6px !important;
+  background: #222 !important;
+  color: #bbb !important;
+  border: 1px solid #444 !important;
+  cursor: pointer;
+}
+.btn-small:hover {
+  background: #333 !important;
+  color: #fff !important;
+}
+

@@ -8,7 +8,7 @@ import express, {
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { fetchAndRetry } from './utils';
-import { rooms, createRoom, startGame, handlePlayCards, handleYield, handleSoloJester, getMaskedState, clearNewFlags } from './game';
+import { rooms, createRoom, resetRoom, startGame, handlePlayCards, handleYield, handleSoloJester, getMaskedState, clearNewFlags } from './game';
 
 dotenv.config({ path: '../../.env' });
 
@@ -63,6 +63,39 @@ if (process.env.NODE_ENV === 'production') {
 	});
 }
 
+const FIXED_LOBBIES = ['lobby-1', 'lobby-2', 'lobby-3'];
+const LOBBY_NAMES: Record<string, string> = {
+	'lobby-1': 'Lobby 1',
+	'lobby-2': 'Lobby 2',
+	'lobby-3': 'Lobby 3',
+};
+
+// Initialize fixed lobbies
+FIXED_LOBBIES.forEach(id => {
+	if (!rooms.has(id)) createRoom(id);
+});
+
+function getLobbiesSummary() {
+	return FIXED_LOBBIES.map(id => {
+		let state = rooms.get(id);
+		if (!state) state = createRoom(id);
+		const isPlaying = state.status === 'PLAYING';
+		return {
+			id,
+			name: LOBBY_NAMES[id] || id,
+			playerCount: state.players.length,
+			maxPlayers: 4,
+			status: state.status,
+			isJoinable: !isPlaying && state.players.length < 4,
+			players: state.players.map(p => p.name),
+		};
+	});
+}
+
+function broadcastLobbies() {
+	io.emit('lobbiesList', getLobbiesSummary());
+}
+
 function broadcastState(roomId: string) {
 	const state = rooms.get(roomId);
 	if (!state) return;
@@ -71,20 +104,42 @@ function broadcastState(roomId: string) {
 		io.to(player.id).emit('gameState', getMaskedState(state, player.id));
 	});
 	clearNewFlags(state);
+	broadcastLobbies();
 }
 
 io.on('connection', (socket) => {
+	// Send lobby list to newly connected clients
+	socket.emit('lobbiesList', getLobbiesSummary());
+
+	socket.on('getLobbies', () => {
+		socket.emit('lobbiesList', getLobbiesSummary());
+	});
+
 	socket.on('joinRoom', (roomId, userName, userId) => {
-		socket.join(roomId);
 		let state = rooms.get(roomId);
 		if (!state) state = createRoom(roomId);
 		
+		// If the room was in game over state, reset it back to lobby
+		if (state.status === 'GAME_OVER_WIN' || state.status === 'GAME_OVER_LOSS') {
+			resetRoom(roomId, state.players.length > 0);
+		}
+
 		// Check for reconnection by persistent userId or socket.id
 		const existingPlayer = state.players.find(p => (userId && p.userId === userId) || p.id === socket.id);
+
 		if (existingPlayer) {
 			existingPlayer.id = socket.id;
 			if (userName) existingPlayer.name = userName;
-		} else if (state.status === 'LOBBY' && state.players.length < 4) {
+		} else {
+			// New player joining: enforce rules
+			if (state.status === 'PLAYING') {
+				socket.emit('joinError', 'This lobby is currently in an active game and cannot be joined.');
+				return;
+			}
+			if (state.players.length >= 4) {
+				socket.emit('joinError', 'This lobby is full (maximum 4 players).');
+				return;
+			}
 			state.players.push({
 				id: socket.id,
 				userId: userId || socket.id,
@@ -92,27 +147,68 @@ io.on('connection', (socket) => {
 				hand: []
 			});
 		}
+
+		socket.join(roomId);
 		
-		// Always send current state directly to this socket so it never hangs
+		// Send state to joining player
 		socket.emit('gameState', getMaskedState(state, socket.id));
-		// Broadcast updated state to all other players in the room
+		// Broadcast updated state to players in this room and lobby list to everyone
 		broadcastState(roomId);
+	});
+
+	socket.on('leaveRoom', (roomId) => {
+		socket.leave(roomId);
+		const state = rooms.get(roomId);
+		if (state) {
+			const index = state.players.findIndex(p => p.id === socket.id);
+			if (index !== -1) {
+				state.players.splice(index, 1);
+			}
+			if (state.players.length === 0) {
+				resetRoom(roomId, false);
+			} else if (state.status !== 'LOBBY') {
+				// Game was disrupted by a player leaving; reset lobby to allow new connections
+				resetRoom(roomId, true);
+				broadcastState(roomId);
+			} else {
+				broadcastState(roomId);
+			}
+		}
+		socket.emit('leftRoom');
+		broadcastLobbies();
+	});
+
+	socket.on('resetLobby', (roomId) => {
+		const state = rooms.get(roomId);
+		if (state) {
+			resetRoom(roomId, true);
+			broadcastState(roomId);
+		}
 	});
 
 	socket.on('disconnect', () => {
 		for (const [roomId, state] of rooms.entries()) {
-			if (state.status === 'LOBBY') {
-				const index = state.players.findIndex(p => p.id === socket.id);
-				if (index !== -1) {
+			const index = state.players.findIndex(p => p.id === socket.id);
+			if (index !== -1) {
+				if (state.status === 'LOBBY') {
 					state.players.splice(index, 1);
 					if (state.players.length === 0) {
-						rooms.delete(roomId);
+						resetRoom(roomId, false);
 					} else {
 						broadcastState(roomId);
+					}
+				} else {
+					// Game is active: check if any sockets remain connected in the room
+					const roomSockets = io.sockets.adapter.rooms.get(roomId);
+					if (!roomSockets || roomSockets.size === 0) {
+						// All players left/disconnected - reset room so it can be used again
+						console.log(`All players disconnected from ${roomId}. Resetting lobby.`);
+						resetRoom(roomId, false);
 					}
 				}
 			}
 		}
+		broadcastLobbies();
 	});
 
 	socket.on('startGame', (roomId) => {
