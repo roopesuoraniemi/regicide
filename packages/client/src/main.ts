@@ -372,13 +372,13 @@ function updateButtons() {
 		if (isMyTurn) {
 			buttonHtml = `
 				<div class="discard-prompt jester-prompt" style="bottom: 250px;">
-					<div style="font-weight: bold; font-size: 1.15rem; color: #f1c40f; margin-bottom: 6px;">
-						🃏 Jester Activated! Immunity Negated.
+					<div style="font-weight: 600; font-size: 1.05rem; color: #fff; margin-bottom: 6px;">
+						Jester Played • Enemy Immunity Negated
 					</div>
-					<div style="font-size: 0.95rem; color: #e0e0e0; margin-bottom: 12px;">
-						Choose who takes the next turn (click any player on the board or select below):
+					<div style="font-size: 0.9rem; color: #aaa; margin-bottom: 14px;">
+						Choose which player takes the next turn:
 					</div>
-					<div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+					<div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
 						${serverState.players.map((p: any) => `
 							<button class="btn-choose-player" data-player-id="${p.id}">
 								${p.name} ${p.id === myPlayerId ? '(You)' : ''}
@@ -389,8 +389,8 @@ function updateButtons() {
 			`;
 		} else {
 			buttonHtml = `
-				<div class="discard-prompt jester-prompt" style="bottom: 250px; background: #22123b;">
-					🃏 Jester played! Waiting for ${serverState.players[serverState.activePlayerIndex]?.name || 'active player'} to choose who takes the next turn...
+				<div class="discard-prompt jester-prompt" style="bottom: 250px;">
+					<span style="color: #aaa;">Jester played • Waiting for <strong>${serverState.players[serverState.activePlayerIndex]?.name || 'active player'}</strong> to choose who goes next...</span>
 				</div>
 			`;
 		}
@@ -526,7 +526,6 @@ function renderRegicideBoard() {
 	const myIndex = serverState.players.findIndex((p: any) => p.id === myPlayerId);
 	const myPlayer = serverState.players[myIndex] || { name: playerName, id: myPlayerId, hand: [] };
 	const isMyTurn = serverState.activePlayerIndex === myIndex;
-	const isTargetable = serverState.gamePhase === 'JESTER_CHOOSE_PLAYER' && isMyTurn;
 	const hand = myPlayer ? myPlayer.hand : [];
 
 	app.innerHTML = `
@@ -539,20 +538,12 @@ function renderRegicideBoard() {
 		<div id="button-container"></div>
 		<div class="table-area" id="table-area"></div>
 		<div id="opponent-hands"></div>
-		<div class="self-player-bar ${isTargetable ? 'player-targetable self-targetable' : ''}" data-player-id="${myPlayer.id}" title="${isTargetable ? 'Click to take next turn yourself' : ''}">
+		<div class="self-player-bar">
 			<span class="self-name">👤 ${myPlayer.name} (You)</span>
 			${isMyTurn ? '<span class="active-turn-badge">Your Turn</span>' : ''}
-			${isTargetable ? '<span class="click-to-pass">▶ Pass turn to yourself</span>' : ''}
 		</div>
 		<div class="hand-area" id="hand-area"></div>
 	`;
-
-	const selfEl = document.querySelector('.self-targetable');
-	if (selfEl) {
-		selfEl.addEventListener('click', () => {
-			choosePlayer(myPlayer.id);
-		});
-	}
 
 	const btnReset = document.getElementById('btn-reset-game');
 	if (btnReset) {
@@ -644,9 +635,6 @@ function renderOpponentHands(myIndex: number) {
 	const pCount = serverState.players.length;
 	if (pCount <= 1) return;
 
-	const isMyTurn = serverState.activePlayerIndex === myIndex;
-	const isTargetable = serverState.gamePhase === 'JESTER_CHOOSE_PLAYER' && isMyTurn;
-
 	for (let i = 0; i < pCount; i++) {
 		if (i === myIndex) continue;
 		
@@ -664,9 +652,8 @@ function renderOpponentHands(myIndex: number) {
 		}
 		
 		const p = serverState.players[i];
-		const targetClass = isTargetable ? 'player-targetable' : '';
-		html += `<div class="opponent-hand ${posClass} ${targetClass}" data-player-id="${p.id}" title="${isTargetable ? `Click to pass turn to ${p.name}` : ''}">`;
-		html += `<div class="opponent-name">${p.name} ${isTargetable ? '<span class="click-to-pass">▶ Pass Turn</span>' : ''}</div>`;
+		html += `<div class="opponent-hand ${posClass}">`;
+		html += `<div class="opponent-name">${p.name}</div>`;
 		html += `<div class="opponent-cards">`;
 		for(let c=0; c < p.handCount; c++) {
 			html += createCardHTML(p.hand[c], false, true);
@@ -675,16 +662,6 @@ function renderOpponentHands(myIndex: number) {
 	}
 	
 	container.innerHTML = html;
-
-	if (isTargetable) {
-		const targetables = container.querySelectorAll('.player-targetable');
-		targetables.forEach(el => {
-			el.addEventListener('click', () => {
-				const pId = el.getAttribute('data-player-id');
-				if (pId) choosePlayer(pId);
-			});
-		});
-	}
 }
 
 function renderHand(hand: any[], isMyTurn: boolean) {

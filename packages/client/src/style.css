@@ -452,38 +452,12 @@ body {
   color: #fff !important;
 }
 
-.player-targetable {
-  cursor: pointer !important;
-  outline: 2px dashed var(--accent) !important;
-  box-shadow: 0 0 15px rgba(187, 134, 252, 0.4) !important;
-  animation: pulse-target 1.5s infinite alternate !important;
-  border-radius: 8px !important;
-  transition: transform 0.15s, background-color 0.2s !important;
-}
-.player-targetable:hover {
-  transform: scale(1.05) !important;
-  outline: 2px solid #fff !important;
-  box-shadow: 0 0 25px rgba(187, 134, 252, 0.8) !important;
-  background: rgba(187, 134, 252, 0.2) !important;
-}
-@keyframes pulse-target {
-  0% { box-shadow: 0 0 8px rgba(187, 134, 252, 0.3); }
-  100% { box-shadow: 0 0 20px rgba(187, 134, 252, 0.7); }
-}
-.click-to-pass {
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 0.75rem;
-  color: var(--accent);
-  font-weight: bold;
-  text-transform: none;
-}
 .self-player-bar {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(20, 20, 20, 0.85);
+  background: rgba(24, 24, 24, 0.9);
   padding: 6px 18px;
   border-radius: 8px;
   border: 1px solid #333;
@@ -513,36 +487,38 @@ body {
   top: 15px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(46, 204, 113, 0.2);
-  border: 1px solid #2ecc71;
+  background: #1e1e1e;
+  border: 1px solid #444;
   color: #2ecc71;
-  font-weight: bold;
-  font-size: 1.1rem;
-  padding: 6px 16px;
-  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 5px 14px;
+  border-radius: 6px;
   z-index: 10;
   letter-spacing: 0.5px;
-  box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
 }
 .jester-prompt {
-  background: #22123b !important;
-  border: 2px solid var(--accent) !important;
-  box-shadow: 0 4px 20px rgba(187, 134, 252, 0.4) !important;
+  background: #1e1e1e !important;
+  border: 1px solid #444 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 10px !important;
+  padding: 16px 24px !important;
 }
 .btn-choose-player {
-  background: var(--accent);
-  color: #121212;
-  border: none;
-  padding: 8px 16px;
+  background: #2c2c2c;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  padding: 8px 18px;
   font-size: 0.95rem;
-  font-weight: bold;
+  font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
-  transition: transform 0.15s, background-color 0.2s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 .btn-choose-player:hover {
-  transform: scale(1.05);
-  background: #d4a5ff;
+  background: #3a3a3a;
+  border-color: var(--accent);
+  color: #fff;
 }
 
 
