@@ -503,6 +503,7 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
   border-radius: 10px !important;
   padding: 16px 24px !important;
+  animation: none !important;
 }
 .btn-choose-player {
   background: #2c2c2c;
