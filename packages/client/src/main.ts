@@ -193,6 +193,11 @@ function useSoloJester() {
 	selectedCardIndices = [];
 }
 
+function choosePlayer(targetPlayerId: string) {
+	socket.emit('chooseNextPlayer', roomId, targetPlayerId);
+	selectedCardIndices = [];
+}
+
 // --- DISCORD SDK & SOCKET ---
 setupDiscordSdk()
 	.catch((error) => {
@@ -363,7 +368,33 @@ function updateButtons() {
 	const selectedCards = selectedCardIndices.map(i => hand[i]);
 	let buttonHtml = '';
 
-	if (serverState.gamePhase === 'DISCARD') {
+	if (serverState.gamePhase === 'JESTER_CHOOSE_PLAYER') {
+		if (isMyTurn) {
+			buttonHtml = `
+				<div class="discard-prompt jester-prompt" style="bottom: 250px;">
+					<div style="font-weight: bold; font-size: 1.15rem; color: #f1c40f; margin-bottom: 6px;">
+						🃏 Jester Activated! Immunity Negated.
+					</div>
+					<div style="font-size: 0.95rem; color: #e0e0e0; margin-bottom: 12px;">
+						Choose who takes the next turn (click any player on the board or select below):
+					</div>
+					<div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+						${serverState.players.map((p: any) => `
+							<button class="btn-choose-player" data-player-id="${p.id}">
+								${p.name} ${p.id === myPlayerId ? '(You)' : ''}
+							</button>
+						`).join('')}
+					</div>
+				</div>
+			`;
+		} else {
+			buttonHtml = `
+				<div class="discard-prompt jester-prompt" style="bottom: 250px; background: #22123b;">
+					🃏 Jester played! Waiting for ${serverState.players[serverState.activePlayerIndex]?.name || 'active player'} to choose who takes the next turn...
+				</div>
+			`;
+		}
+	} else if (serverState.gamePhase === 'DISCARD') {
 		const selectedSum = selectedCards.reduce((sum: number, c: any) => sum + c.value, 0);
 		const disabled = (!isMyTurn || selectedSum < serverState.damageToTake) ? 'disabled' : '';
 		const turnText = isMyTurn ? `Need ${serverState.damageToTake} value.` : `Waiting for ${serverState.players[serverState.activePlayerIndex].name} to discard...`;
@@ -384,6 +415,8 @@ function updateButtons() {
 			}
 		}
 
+		const isJoker = selectedCards.length === 1 && selectedCards[0].rank === 'Joker';
+		const submitText = isJoker ? 'Play Jester (Cancel Immunity)' : 'Play Selected';
 		const disabled = (!isMyTurn || !isValid) ? 'disabled' : '';
 		const yieldBtn = isMyTurn ? `<button class="action-btn" id="yield-btn" style="left: calc(50% + 150px); background: #333; color: white;">Yield</button>` : '';
 		const jesterBtn = (isMyTurn && serverState.soloJestersRemaining > 0) ? `<button class="action-btn" id="jester-btn" style="left: calc(50% - 180px); background: #f1c40f;">Solo Jester (${serverState.soloJestersRemaining})</button>` : '';
@@ -392,13 +425,21 @@ function updateButtons() {
 
 		buttonHtml = `
 			${turnText}
-			${isMyTurn ? `<button class="action-btn" id="submit-btn" ${disabled}>Play Selected</button>` : ''}
+			${isMyTurn ? `<button class="action-btn" id="submit-btn" ${disabled}>${submitText}</button>` : ''}
 			${yieldBtn}
 			${jesterBtn}
 		`;
 	}
 
 	btnContainer.innerHTML = buttonHtml;
+
+	const chooseBtns = document.querySelectorAll('.btn-choose-player');
+	chooseBtns.forEach(btn => {
+		btn.addEventListener('click', () => {
+			const targetId = btn.getAttribute('data-player-id');
+			if (targetId) choosePlayer(targetId);
+		});
+	});
 
 	const submitBtn = document.getElementById('submit-btn');
 	if (submitBtn && !submitBtn.hasAttribute('disabled')) {
@@ -478,7 +519,15 @@ function renderRegicideBoard() {
 		return;
 	}
 
-	let immunityTag = serverState.immunityCanceled ? '<div style="position: absolute; top: 10px; color: #f1c40f; font-weight: bold; font-size: 1.5rem;">Immunity Canceled!</div>' : '';
+	let immunityTag = serverState.immunityCanceled 
+		? '<div class="immunity-negated-banner">Immunity Negated (★ Jester)</div>' 
+		: '';
+
+	const myIndex = serverState.players.findIndex((p: any) => p.id === myPlayerId);
+	const myPlayer = serverState.players[myIndex] || { name: playerName, id: myPlayerId, hand: [] };
+	const isMyTurn = serverState.activePlayerIndex === myIndex;
+	const isTargetable = serverState.gamePhase === 'JESTER_CHOOSE_PLAYER' && isMyTurn;
+	const hand = myPlayer ? myPlayer.hand : [];
 
 	app.innerHTML = `
 		<div class="game-top-bar">
@@ -490,8 +539,20 @@ function renderRegicideBoard() {
 		<div id="button-container"></div>
 		<div class="table-area" id="table-area"></div>
 		<div id="opponent-hands"></div>
+		<div class="self-player-bar ${isTargetable ? 'player-targetable self-targetable' : ''}" data-player-id="${myPlayer.id}" title="${isTargetable ? 'Click to take next turn yourself' : ''}">
+			<span class="self-name">👤 ${myPlayer.name} (You)</span>
+			${isMyTurn ? '<span class="active-turn-badge">Your Turn</span>' : ''}
+			${isTargetable ? '<span class="click-to-pass">▶ Pass turn to yourself</span>' : ''}
+		</div>
 		<div class="hand-area" id="hand-area"></div>
 	`;
+
+	const selfEl = document.querySelector('.self-targetable');
+	if (selfEl) {
+		selfEl.addEventListener('click', () => {
+			choosePlayer(myPlayer.id);
+		});
+	}
 
 	const btnReset = document.getElementById('btn-reset-game');
 	if (btnReset) {
@@ -505,11 +566,6 @@ function renderRegicideBoard() {
 			leaveLobby();
 		});
 	}
-
-	const myIndex = serverState.players.findIndex((p: any) => p.id === myPlayerId);
-	const myPlayer = serverState.players[myIndex];
-	const isMyTurn = serverState.activePlayerIndex === myIndex;
-	const hand = myPlayer ? myPlayer.hand : [];
 
 	updateButtons();
 	renderTablePiles();
@@ -535,8 +591,10 @@ function createCardHTML(card: any, isEnemy = false, isFaceDown = false, pileId =
 	
 	let extraInfo = '';
 	if (isEnemy) {
-		const immunityInfo = serverState.immunityCanceled ? '' : `Immune to ${card.suit}`;
-		extraInfo = `<div style="position: absolute; bottom: -50px; width: 100%; text-align: center; color: white; font-size: 1.1rem; font-weight:bold;">HP: ${card.currentHp}/${card.maxHp} <br/> ATK: ${card.attack} <br/> <span style="font-size:0.9rem; color:#888;">${immunityInfo}</span></div>`;
+		const immunityInfo = serverState.immunityCanceled 
+			? '<span style="color: #2ecc71; font-weight: bold;">Immunity Negated (★)</span>' 
+			: `Immune to ${card.suit}`;
+		extraInfo = `<div style="position: absolute; bottom: -50px; width: 100%; text-align: center; color: white; font-size: 1.1rem; font-weight:bold;">HP: ${card.currentHp}/${card.maxHp} <br/> ATK: ${card.attack} <br/> <span style="font-size:0.9rem; color:${serverState.immunityCanceled ? '#2ecc71' : '#888'};">${immunityInfo}</span></div>`;
 	}
 
 	return `
@@ -586,6 +644,9 @@ function renderOpponentHands(myIndex: number) {
 	const pCount = serverState.players.length;
 	if (pCount <= 1) return;
 
+	const isMyTurn = serverState.activePlayerIndex === myIndex;
+	const isTargetable = serverState.gamePhase === 'JESTER_CHOOSE_PLAYER' && isMyTurn;
+
 	for (let i = 0; i < pCount; i++) {
 		if (i === myIndex) continue;
 		
@@ -603,8 +664,9 @@ function renderOpponentHands(myIndex: number) {
 		}
 		
 		const p = serverState.players[i];
-		html += `<div class="opponent-hand ${posClass}">`;
-		html += `<div class="opponent-name">${p.name}</div>`;
+		const targetClass = isTargetable ? 'player-targetable' : '';
+		html += `<div class="opponent-hand ${posClass} ${targetClass}" data-player-id="${p.id}" title="${isTargetable ? `Click to pass turn to ${p.name}` : ''}">`;
+		html += `<div class="opponent-name">${p.name} ${isTargetable ? '<span class="click-to-pass">▶ Pass Turn</span>' : ''}</div>`;
 		html += `<div class="opponent-cards">`;
 		for(let c=0; c < p.handCount; c++) {
 			html += createCardHTML(p.hand[c], false, true);
@@ -613,6 +675,16 @@ function renderOpponentHands(myIndex: number) {
 	}
 	
 	container.innerHTML = html;
+
+	if (isTargetable) {
+		const targetables = container.querySelectorAll('.player-targetable');
+		targetables.forEach(el => {
+			el.addEventListener('click', () => {
+				const pId = el.getAttribute('data-player-id');
+				if (pId) choosePlayer(pId);
+			});
+		});
+	}
 }
 
 function renderHand(hand: any[], isMyTurn: boolean) {

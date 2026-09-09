@@ -32,9 +32,10 @@ export interface GameState {
 	discard: Card[];
 	enemies: Enemy[];
 	currentEnemy: Enemy | null;
-	gamePhase: 'PLAY' | 'DISCARD';
+	gamePhase: 'PLAY' | 'DISCARD' | 'JESTER_CHOOSE_PLAYER';
 	damageToTake: number;
 	currentShield: number;
+	spadesPlayedAgainstCurrentEnemy: number;
 	immunityCanceled: boolean;
 	maxHandSize: number;
 	soloJestersRemaining: number;
@@ -58,6 +59,7 @@ export function createRoom(roomId: string): GameState {
 		gamePhase: 'PLAY',
 		damageToTake: 0,
 		currentShield: 0,
+		spadesPlayedAgainstCurrentEnemy: 0,
 		immunityCanceled: false,
 		maxHandSize: 8,
 		soloJestersRemaining: 0,
@@ -81,6 +83,7 @@ export function resetRoom(roomId: string, keepPlayers: boolean = false): GameSta
 		gamePhase: 'PLAY',
 		damageToTake: 0,
 		currentShield: 0,
+		spadesPlayedAgainstCurrentEnemy: 0,
 		immunityCanceled: false,
 		maxHandSize: 8,
 		soloJestersRemaining: 0,
@@ -149,6 +152,7 @@ export function startGame(state: GameState) {
 function spawnNextEnemy(state: GameState) {
 	state.currentEnemy = state.enemies.pop() || null;
 	state.currentShield = 0;
+	state.spadesPlayedAgainstCurrentEnemy = 0;
 	state.immunityCanceled = false;
 	if (!state.currentEnemy) {
 		state.status = 'GAME_OVER_WIN';
@@ -237,8 +241,21 @@ function nextPlayer(state: GameState) {
 	state.gamePhase = 'PLAY';
 }
 
+export function handleChooseNextPlayer(state: GameState, playerId: string, targetPlayerId: string): boolean {
+	if (state.status !== 'PLAYING' || state.gamePhase !== 'JESTER_CHOOSE_PLAYER') return false;
+	const activePlayer = state.players[state.activePlayerIndex];
+	if (!activePlayer || activePlayer.id !== playerId) return false;
+
+	const targetIndex = state.players.findIndex(p => p.id === targetPlayerId);
+	if (targetIndex === -1) return false;
+
+	state.activePlayerIndex = targetIndex;
+	state.gamePhase = 'PLAY';
+	return true;
+}
+
 export function handlePlayCards(state: GameState, playerId: string, cardIndices: number[]) {
-	if (state.status !== 'PLAYING') return;
+	if (state.status !== 'PLAYING' || state.gamePhase === 'JESTER_CHOOSE_PLAYER') return;
 	const pIdx = state.players.findIndex(p => p.id === playerId);
 	if (pIdx !== state.activePlayerIndex) return;
 	
@@ -272,6 +289,12 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 
 	if (selectedCards.length === 1 && selectedCards[0].rank === 'Joker') {
 		state.immunityCanceled = true;
+		if (state.currentEnemy && state.currentEnemy.suit === '♠') {
+			state.currentShield += state.spadesPlayedAgainstCurrentEnemy;
+			state.currentEnemy.attack = Math.max(0, state.currentEnemy.originalAttack - state.currentShield);
+		}
+		state.damageToTake = 0;
+		state.gamePhase = 'JESTER_CHOOSE_PLAYER';
 		return; 
 	}
 
@@ -289,9 +312,12 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 	if (uniqueSuits.has('♦') && (state.immunityCanceled || state.currentEnemy.suit !== '♦')) {
 		drawCardsForCurrent(state, baseDamage);
 	}
-	if (uniqueSuits.has('♠') && (state.immunityCanceled || state.currentEnemy.suit !== '♠')) {
-		state.currentShield += baseDamage;
-		state.currentEnemy.attack = Math.max(0, state.currentEnemy.originalAttack - state.currentShield);
+	if (uniqueSuits.has('♠')) {
+		state.spadesPlayedAgainstCurrentEnemy += baseDamage;
+		if (state.immunityCanceled || state.currentEnemy.suit !== '♠') {
+			state.currentShield += baseDamage;
+			state.currentEnemy.attack = Math.max(0, state.currentEnemy.originalAttack - state.currentShield);
+		}
 	}
 	
 	const exactKill = state.currentEnemy.currentHp === finalDamage;

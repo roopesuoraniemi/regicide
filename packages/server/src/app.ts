@@ -8,7 +8,7 @@ import express, {
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { fetchAndRetry } from './utils';
-import { rooms, createRoom, resetRoom, startGame, handlePlayCards, handleYield, handleSoloJester, getMaskedState, clearNewFlags } from './game';
+import { rooms, createRoom, resetRoom, startGame, handlePlayCards, handleChooseNextPlayer, handleYield, handleSoloJester, getMaskedState, clearNewFlags } from './game';
 
 dotenv.config({ path: '../../.env' });
 
@@ -232,6 +232,15 @@ io.on('connection', (socket) => {
 		if (state) {
 			handleYield(state, socket.id);
 			broadcastState(roomId);
+		}
+	});
+
+	socket.on('chooseNextPlayer', (roomId, targetPlayerId) => {
+		const state = rooms.get(roomId);
+		if (state) {
+			if (handleChooseNextPlayer(state, socket.id, targetPlayerId)) {
+				broadcastState(roomId);
+			}
 		}
 	});
 
