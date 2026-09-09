@@ -386,6 +386,7 @@ function updateSelectionDOM() {
 
 function updateButtons() {
 	const btnContainer = document.getElementById('button-container');
+	const promptContainer = document.getElementById('phase-prompt-container');
 	if (!btnContainer) return;
 
 	const myIndex = serverState.players.findIndex((p: any) => p.id === myPlayerId);
@@ -395,10 +396,11 @@ function updateButtons() {
 
 	const selectedCards = selectedCardIndices.map(i => hand[i]);
 	let buttonHtml = '';
+	let promptHtml = '';
 
 	if (serverState.gamePhase === 'JESTER_CHOOSE_PLAYER') {
 		if (isMyTurn) {
-			buttonHtml = `
+			promptHtml = `
 				<div class="discard-prompt jester-prompt" style="bottom: 250px;">
 					<div style="font-weight: 600; font-size: 1.05rem; color: #fff; margin-bottom: 6px;">
 						Jester Played • Enemy Immunity Negated
@@ -418,7 +420,7 @@ function updateButtons() {
 			`;
 		} else {
 			const activeP = serverState.players[serverState.activePlayerIndex];
-			buttonHtml = `
+			promptHtml = `
 				<div class="discard-prompt jester-prompt" style="bottom: 250px; display: flex; align-items: center; gap: 8px;">
 					<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
 					<span style="color: #aaa;">Jester played • Waiting for <strong>${activeP?.name || 'active player'}</strong> to choose who goes next...</span>
@@ -428,11 +430,26 @@ function updateButtons() {
 	} else if (serverState.gamePhase === 'DISCARD') {
 		const selectedSum = selectedCards.reduce((sum: number, c: any) => sum + c.value, 0);
 		const disabled = (!isMyTurn || selectedSum < serverState.damageToTake) ? 'disabled' : '';
-		const turnText = isMyTurn ? `Need ${serverState.damageToTake} value.` : `Waiting for ${serverState.players[serverState.activePlayerIndex].name} to discard...`;
-		buttonHtml = `
-			<div class="discard-prompt" style="bottom: 300px;">Enemy attacks! ${turnText}</div>
-			${isMyTurn ? `<button class="action-btn" id="submit-btn" ${disabled}>Discard Selected (${selectedSum}/${serverState.damageToTake})</button>` : ''}
-		`;
+		if (isMyTurn) {
+			promptHtml = `
+				<div class="turn-prompt-banner discard-warning">
+					Enemy attacks! Need ${serverState.damageToTake} value. (Selected: ${selectedSum}/${serverState.damageToTake})
+				</div>
+			`;
+			buttonHtml = `
+				<button class="action-btn btn-discard" id="submit-btn" ${disabled}>
+					Discard Selected (${selectedSum}/${serverState.damageToTake})
+				</button>
+			`;
+		} else {
+			const activeP = serverState.players[serverState.activePlayerIndex];
+			promptHtml = `
+				<div class="turn-prompt-banner">
+					<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
+					<span>Waiting for ${activeP?.name || 'player'} to discard...</span>
+				</div>
+			`;
+		}
 	} else {
 		const sum = selectedCards.reduce((acc: number, c: any) => acc + c.value, 0);
 		let isValid = true;
@@ -449,26 +466,31 @@ function updateButtons() {
 		const isJoker = selectedCards.length === 1 && selectedCards[0].rank === 'Joker';
 		const submitText = isJoker ? 'Play Jester (Cancel Immunity)' : 'Play Selected';
 		const disabled = (!isMyTurn || !isValid) ? 'disabled' : '';
-		const yieldBtn = isMyTurn ? `<button class="action-btn" id="yield-btn" style="left: calc(50% + 150px); background: #333; color: white;">Yield</button>` : '';
-		const jesterBtn = (isMyTurn && serverState.soloJestersRemaining > 0) ? `<button class="action-btn" id="jester-btn" style="left: calc(50% - 180px); background: #f1c40f;">Solo Jester (${serverState.soloJestersRemaining})</button>` : '';
 
-		const activeP = serverState.players[serverState.activePlayerIndex];
-		const turnText = isMyTurn ? '' : `
-			<div class="discard-prompt" style="bottom: 300px; background: #222; border: 1px solid #444; display: flex; align-items: center; gap: 8px;">
-				<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
-				<span>Waiting for ${activeP?.name || 'player'}'s turn...</span>
-			</div>
-		`;
-
-		buttonHtml = `
-			${turnText}
-			${isMyTurn ? `<button class="action-btn" id="submit-btn" ${disabled}>${submitText}</button>` : ''}
-			${yieldBtn}
-			${jesterBtn}
-		`;
+		if (isMyTurn) {
+			buttonHtml = `
+				<button class="action-btn btn-play" id="submit-btn" ${disabled}>${submitText}</button>
+				<button class="action-btn btn-yield" id="yield-btn">Yield</button>
+				${serverState.soloJestersRemaining > 0 ? `<button class="action-btn btn-solo-jester" id="jester-btn">Solo Jester (${serverState.soloJestersRemaining})</button>` : ''}
+			`;
+		} else {
+			const activeP = serverState.players[serverState.activePlayerIndex];
+			promptHtml = `
+				<div class="turn-prompt-banner">
+					<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
+					<span>Waiting for ${activeP?.name || 'player'}'s turn...</span>
+				</div>
+			`;
+		}
 	}
 
 	btnContainer.innerHTML = buttonHtml;
+	if (promptContainer) promptContainer.innerHTML = promptHtml;
+
+	const spacer = document.getElementById('hand-actions-spacer');
+	if (spacer) {
+		spacer.style.display = buttonHtml ? 'block' : 'none';
+	}
 
 	const chooseBtns = document.querySelectorAll('.btn-choose-player');
 	chooseBtns.forEach(btn => {
@@ -498,7 +520,7 @@ function renderRegicideBoard() {
 				<div class="menu-content" style="max-width: 480px;">
 					<h1 style="color: var(--red-suit); font-size: 2.6rem; margin-bottom: 5px;">${currentLobbyName.toUpperCase()}</h1>
 					<p style="margin-bottom: 5px; font-size: 1.05rem;">${serverState.players.length} / 4 Players connected</p>
-					<p style="margin-bottom: 18px; font-size: 0.85rem; color: #888;">
+					<p style="font-size: 0.85rem; color: #888; margin-bottom: 20px;">
 						Waiting in room: <span style="color: #bbb; font-family: monospace;">${roomId}</span>
 					</p>
 					<div style="margin-bottom: 22px; line-height: 1.8; background: #1a1a1a; padding: 14px 18px; border-radius: 8px; border: 1px solid #333; text-align: left;">
@@ -577,17 +599,23 @@ function renderRegicideBoard() {
 			<span style="font-weight: bold; color: var(--accent); font-size: 1.05rem; letter-spacing: 0.5px;">${currentLobbyName}</span>
 			<button id="btn-reset-game" class="btn-small">Reset Game</button>
 			<button id="btn-leave-game" class="btn-small">Leave Game</button>
+			${immunityTag}
 		</div>
-		${immunityTag}
-		<div id="button-container"></div>
 		<div class="table-area" id="table-area"></div>
 		<div id="opponent-hands"></div>
-		<div class="self-player-bar">
-			<img class="player-avatar-small" src="${myPlayer.avatarUrl || playerAvatar || DEFAULT_AVATAR}" alt="${myPlayer.name}" />
-			<span class="self-name">${myPlayer.name} (You)</span>
-			${isMyTurn ? '<span class="active-turn-badge">Your Turn</span>' : ''}
+		<div class="player-hand-section">
+			<div id="phase-prompt-container"></div>
+			<div class="self-player-bar">
+				<img class="player-avatar-small" src="${myPlayer.avatarUrl || playerAvatar || DEFAULT_AVATAR}" alt="${myPlayer.name}" />
+				<span class="self-name">${myPlayer.name} (You)</span>
+				${isMyTurn ? '<span class="active-turn-badge">Your Turn</span>' : ''}
+			</div>
+			<div class="hand-wrapper">
+				<div class="hand-actions-spacer" id="hand-actions-spacer"></div>
+				<div class="hand-area" id="hand-area"></div>
+				<div class="hand-actions" id="button-container"></div>
+			</div>
 		</div>
-		<div class="hand-area" id="hand-area"></div>
 	`;
 
 	const btnReset = document.getElementById('btn-reset-game');
@@ -630,7 +658,15 @@ function createCardHTML(card: any, isEnemy = false, isFaceDown = false, pileId =
 		const immunityInfo = serverState.immunityCanceled 
 			? '<span style="color: #2ecc71; font-weight: bold;">Immunity Negated (★)</span>' 
 			: `Immune to ${card.suit}`;
-		extraInfo = `<div style="position: absolute; bottom: -50px; width: 100%; text-align: center; color: white; font-size: 1.1rem; font-weight:bold;">HP: ${card.currentHp}/${card.maxHp} <br/> ATK: ${card.attack} <br/> <span style="font-size:0.9rem; color:${serverState.immunityCanceled ? '#2ecc71' : '#888'};">${immunityInfo}</span></div>`;
+		extraInfo = `
+			<div class="enemy-stats">
+				<div class="enemy-stat-row">Health: ${card.currentHp}</div>
+				<div class="enemy-stat-row">Attack: ${card.attack}</div>
+				<div class="enemy-immunity" style="color: ${serverState.immunityCanceled ? '#2ecc71' : '#888'};">
+					${immunityInfo}
+				</div>
+			</div>
+		`;
 	}
 
 	return `

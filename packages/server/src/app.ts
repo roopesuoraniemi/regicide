@@ -256,6 +256,19 @@ io.on('connection', (socket) => {
 			broadcastState(roomId);
 		}
 	});
+
+	socket.on('_testInjectCard', (roomId, card, target) => {
+		const state = rooms.get(roomId);
+		if (state) {
+			const p = target 
+				? state.players.find(pl => pl.name === target || pl.id === target || pl.name.includes(target)) 
+				: state.players.find(pl => pl.id === socket.id);
+			if (p) {
+				p.hand.unshift(card);
+				broadcastState(roomId);
+			}
+		}
+	});
 });
 
 httpServer.listen(port, () => {
