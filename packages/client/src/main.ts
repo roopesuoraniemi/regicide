@@ -1,4 +1,4 @@
-import { discordSdk } from './discordSdk';
+import { discordSdk, isEmbedded } from './discordSdk';
 import { io, Socket } from 'socket.io-client';
 import './style.css';
 
@@ -7,6 +7,27 @@ let roomId = 'local-dev-room';
 let myPlayerId = '';
 let serverState: any = null;
 let selectedCardIndices: number[] = [];
+
+function renderStatus(message: string, isError = false, details?: string) {
+	const app = document.querySelector<HTMLDivElement>('#app');
+	if (!app) return;
+	app.innerHTML = `
+		<div class="menu-overlay">
+			<div class="menu-content" style="max-width: 500px; text-align: center;">
+				<h1 style="color: var(--red-suit); font-size: 2.5rem; margin-bottom: 15px;">REGICIDE</h1>
+				<p style="color: ${isError ? '#cf6679' : 'var(--text-primary)'}; font-size: 1.1rem; margin-bottom: 15px;">
+					${message}
+				</p>
+				${details ? `<pre style="color: #ff9e9e; background: #1a1a1a; padding: 10px; border-radius: 6px; font-size: 0.85rem; overflow-x: auto; text-align: left; word-break: break-all; white-space: pre-wrap;">${details}</pre>` : ''}
+				${isError ? `<button id="btn-retry" style="margin-top: 15px; padding: 10px 20px; font-size: 1rem; border-radius: 6px; cursor: pointer;">Retry</button>` : ''}
+			</div>
+		</div>
+	`;
+	const retryBtn = document.getElementById('btn-retry');
+	if (retryBtn) {
+		retryBtn.addEventListener('click', () => window.location.reload());
+	}
+}
 
 // --- ACTION EMITTERS ---
 function toggleSelection(index: number) {
@@ -38,42 +59,67 @@ function useSoloJester() {
 setupDiscordSdk()
 	.catch((error) => {
 		console.error("SDK Error:", error);
-		const app = document.querySelector<HTMLDivElement>('#app');
-		if (app) app.innerHTML = `<h1 style="color:red;">Error: ${error.message}</h1>`;
+		renderStatus('Initialization Error', true, error.message);
 	});
 
 async function setupDiscordSdk() {
-	let userName = 'Player';
+	let userName = `Player ${Math.floor(100 + Math.random() * 900)}`;
 	
-	try {
-		await discordSdk.ready();
-		if (discordSdk.instanceId) roomId = discordSdk.instanceId;
-		
-		const { code } = await discordSdk.commands.authorize({
-			client_id: import.meta.env.VITE_CLIENT_ID,
-			response_type: 'code',
-			state: '',
-			prompt: 'none',
-			scope: ['applications.commands', 'identify', 'guilds', 'rpc.voice.read'],
-		});
-		const response = await fetch('/api/token', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ code }),
-		});
-		const { access_token } = await response.json();
-		const auth = await discordSdk.commands.authenticate({ access_token });
-		if (!auth) throw new Error('Authenticate failed');
-		userName = auth.user.username;
-	} catch (e) {
-		console.log("Discord SDK failed (probably running outside Discord). Using fallback room.");
+	if (isEmbedded) {
+		renderStatus('Connecting to Discord...');
+		try {
+			await discordSdk.ready();
+			if (discordSdk.instanceId) roomId = discordSdk.instanceId;
+			
+			renderStatus('Authorizing with Discord...');
+			const { code } = await discordSdk.commands.authorize({
+				client_id: import.meta.env.VITE_CLIENT_ID,
+				response_type: 'code',
+				state: '',
+				prompt: 'none',
+				scope: ['applications.commands', 'identify', 'guilds', 'rpc.voice.read'],
+			});
+
+			renderStatus('Authenticating with game server...');
+			const response = await fetch('/api/token', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ code }),
+			});
+
+			const tokenData = await response.json().catch(() => ({}));
+			if (!response.ok || !tokenData.access_token) {
+				throw new Error(tokenData.error || `Failed token exchange (HTTP ${response.status})`);
+			}
+
+			const auth = await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
+			if (!auth) throw new Error('Discord SDK authenticate failed');
+			userName = auth.user.username;
+		} catch (e: any) {
+			console.warn("Discord SDK authentication failed, proceeding with fallback session:", e);
+			renderStatus('Discord authorization skipped. Connecting as guest...', false, e?.message);
+		}
+	} else {
+		console.log("Running in standalone browser (mock SDK mode). Default room:", roomId);
 	}
 
+	renderStatus('Connecting to Regicide server...');
 	socket = io();
 	
 	socket.on('connect', () => {
 		myPlayerId = socket.id || '';
+		renderStatus('Connected! Entering lobby...');
 		socket.emit('joinRoom', roomId, userName);
+	});
+
+	socket.on('connect_error', (err) => {
+		console.error("Socket connection error:", err);
+		renderStatus('Unable to connect to game server (port 3001).', true, `Is the server running?\n${err.message}`);
+	});
+
+	socket.on('disconnect', (reason) => {
+		console.warn("Socket disconnected:", reason);
+		renderStatus('Disconnected from game server.', true, reason);
 	});
 
 	socket.on('gameState', (state) => {

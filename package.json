@@ -6,6 +6,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "pnpm run --filter \"./packages/**\" --parallel dev",
+    "build": "pnpm --filter client build && pnpm --filter server build",
+    "start": "NODE_ENV=production node packages/server/dist/app.js",
     "tunnel": "ngrok http 3000 --url https://dismount-drudge-sixtieth.ngrok-free.dev"
   },
   "author": "Discord",
