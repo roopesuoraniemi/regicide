@@ -426,18 +426,18 @@ function updateButtons() {
 	if (serverState.gamePhase === 'JESTER_CHOOSE_PLAYER') {
 		if (isMyTurn) {
 			promptHtml = `
-				<div class="discard-prompt jester-prompt" style="bottom: 250px;">
-					<div style="font-weight: 600; font-size: 1.05rem; color: #fff; margin-bottom: 6px;">
-						Jester Played • Enemy Immunity Negated
+				<div class="jester-choose-banner">
+					<div style="font-weight: 700; font-size: 0.95rem; color: #f1c40f; margin-bottom: 4px;">
+						★ Jester Played • Enemy Immunity Negated
 					</div>
-					<div style="font-size: 0.9rem; color: #aaa; margin-bottom: 14px;">
+					<div style="font-size: 0.82rem; color: #ccc; margin-bottom: 10px;">
 						Choose which player takes the next turn:
 					</div>
-					<div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+					<div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
 						${serverState.players.map((p: any) => `
 							<button class="btn-choose-player" data-player-id="${p.id}">
-								<img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${p.name}" />
-								<span>${p.name} ${p.id === myPlayerId ? '(You)' : ''}</span>
+								<img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${escapeHtml(p.name)}" />
+								<span>${escapeHtml(p.name)} ${p.id === myPlayerId ? '(You)' : ''}</span>
 							</button>
 						`).join('')}
 					</div>
@@ -446,9 +446,9 @@ function updateButtons() {
 		} else {
 			const activeP = serverState.players[serverState.activePlayerIndex];
 			promptHtml = `
-				<div class="discard-prompt jester-prompt" style="bottom: 250px; display: flex; align-items: center; gap: 8px;">
-					<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${activeP?.name || 'player'}" />
-					<span style="color: #aaa;">Jester played • Waiting for <strong>${activeP?.name || 'active player'}</strong> to choose who goes next...</span>
+				<div class="turn-prompt-banner" style="border-color: #f1c40f;">
+					<img class="player-avatar-small" src="${activeP?.avatarUrl || DEFAULT_AVATAR}" alt="${escapeHtml(activeP?.name || 'player')}" />
+					<span style="color: #f1c40f;">★ Jester played • Waiting for <strong>${escapeHtml(activeP?.name || 'active player')}</strong> to choose next turn...</span>
 				</div>
 			`;
 		}
@@ -727,29 +727,12 @@ function createCardHTML(card: any, isEnemy = false, isFaceDown = false, pileId =
 	const animClass = card.isNew ? 'animate-draw' : '';
 	const selectClass = isSelected ? 'selected' : '';
 	const disabledClass = isDisabled ? 'disabled' : '';
-	
-	let extraInfo = '';
-	if (isEnemy) {
-		const immunityInfo = serverState.immunityCanceled 
-			? '<span style="color: #2ecc71; font-weight: bold;">Immunity Negated (★)</span>' 
-			: `Immune to ${card.suit}`;
-		extraInfo = `
-			<div class="enemy-stats">
-				<div class="enemy-stat-row">Health: ${card.currentHp}</div>
-				<div class="enemy-stat-row">Attack: ${card.attack}</div>
-				<div class="enemy-immunity" style="color: ${serverState.immunityCanceled ? '#2ecc71' : '#888'};">
-					${immunityInfo}
-				</div>
-			</div>
-		`;
-	}
 
 	return `
 		<div class="card ${colorClass} ${enemyClass} ${animClass} ${selectClass} ${disabledClass}" ${transitionStyle}>
 			<div class="card-top"><span>${card.rank}</span><span>${card.suit}</span></div>
 			<div class="card-center">${card.suit}</div>
 			<div class="card-bottom"><span>${card.rank}</span><span>${card.suit}</span></div>
-			${extraInfo}
 		</div>
 	`;
 }
@@ -759,28 +742,80 @@ function renderTablePiles() {
 	if (!tableArea) return;
 
 	const tavernHtml = `
-		<div class="pile-container">
+		<div class="pile-container tavern-container">
 			<div class="pile-label">Tavern (${serverState.deckCount})</div>
-			${serverState.deckCount > 0 ? createCardHTML(null, false, true, 'tavern-deck') : createCardHTML(null)}
+			${serverState.deckCount > 0 
+				? createCardHTML(null, false, true, 'tavern-deck') 
+				: `<div class="card discard-placeholder"><span class="placeholder-icon">🍺</span></div>`
+			}
 		</div>
 	`;
 
-	const enemyHtml = serverState.currentEnemy ? `
-		<div class="pile-container">
-			<div class="pile-label">Enemy</div>
-			${createCardHTML(serverState.currentEnemy, true, false)}
+	let enemyHtml = '';
+	if (serverState.currentEnemy) {
+		const card = serverState.currentEnemy;
+		const immunityInfo = serverState.immunityCanceled 
+			? '<span style="color: #2ecc71; font-weight: bold;">Immunity Negated (★)</span>' 
+			: `Immune to ${card.suit}`;
+		const statsHtml = `
+			<div class="enemy-stats">
+				<div class="enemy-stat-row">Health: ${card.currentHp} &bull; Attack: ${card.attack}</div>
+				<div class="enemy-immunity" style="color: ${serverState.immunityCanceled ? '#2ecc71' : '#888'};">
+					${immunityInfo}
+				</div>
+			</div>
+		`;
+		enemyHtml = `
+			<div class="pile-container enemy-container">
+				<div class="pile-label">Enemy</div>
+				${createCardHTML(card, true, false)}
+				${statsHtml}
+			</div>
+		`;
+	}
+
+	const playedCards = serverState.playedCards || [];
+	const playedCount = playedCards.length;
+	let playedCardsInnerHtml = '';
+	if (playedCount === 0) {
+		playedCardsInnerHtml = `
+			<div class="played-cards-placeholder">
+				<span class="placeholder-icon">⚔️</span>
+				<span class="placeholder-label">No cards in play</span>
+			</div>
+		`;
+	} else {
+		playedCardsInnerHtml = playedCards.map((card: any) => createCardHTML(card, false, false)).join('');
+	}
+
+	const playAreaHtml = `
+		<div class="pile-container play-area-container">
+			<div class="pile-label">Play Area (${playedCount})</div>
+			<div class="played-cards-area">
+				${playedCardsInnerHtml}
+			</div>
 		</div>
-	` : '';
+	`;
+
+	const centerColumnHtml = `
+		<div class="combat-center-column">
+			${enemyHtml}
+			${playAreaHtml}
+		</div>
+	`;
 
 	const topDiscard = serverState.discard.length > 0 ? serverState.discard[serverState.discard.length - 1] : null;
 	const discardHtml = `
-		<div class="pile-container">
+		<div class="pile-container discard-container">
 			<div class="pile-label">Discard (${serverState.discard.length})</div>
-			${topDiscard ? createCardHTML(topDiscard, false, false) : createCardHTML(null, false, false, 'discard-deck')}
+			${topDiscard 
+				? createCardHTML(topDiscard, false, false) 
+				: `<div class="card discard-placeholder"><span class="placeholder-icon">🗑️</span></div>`
+			}
 		</div>
 	`;
 
-	tableArea.innerHTML = tavernHtml + enemyHtml + discardHtml;
+	tableArea.innerHTML = tavernHtml + centerColumnHtml + discardHtml;
 }
 
 function renderOpponentHands(myIndex: number) {
@@ -789,32 +824,33 @@ function renderOpponentHands(myIndex: number) {
 	
 	let html = '';
 	const pCount = serverState.players.length;
-	if (pCount <= 1) return;
+	if (pCount <= 1) {
+		container.innerHTML = '';
+		return;
+	}
 
 	for (let i = 0; i < pCount; i++) {
 		if (i === myIndex) continue;
-		
-		const relative = (i - myIndex + pCount) % pCount;
-		let posClass = '';
-		
-		if (pCount === 2) posClass = 'hand-top';
-		else if (pCount === 3) {
-			if (relative === 1) posClass = 'hand-left';
-			if (relative === 2) posClass = 'hand-right';
-		} else if (pCount === 4) {
-			if (relative === 1) posClass = 'hand-left';
-			if (relative === 2) posClass = 'hand-top';
-			if (relative === 3) posClass = 'hand-right';
-		}
-		
 		const p = serverState.players[i];
-		html += `<div class="opponent-hand ${posClass}">`;
-		html += `<div class="opponent-name"><img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${p.name}" /><span>${p.name}</span></div>`;
-		html += `<div class="opponent-cards">`;
-		for(let c=0; c < p.handCount; c++) {
+		const isTurn = serverState.activePlayerIndex === i;
+
+		html += `
+			<div class="opponent-hand ${isTurn ? 'active-turn' : ''}">
+				<div class="opponent-header">
+					<img class="player-avatar-small" src="${p.avatarUrl || DEFAULT_AVATAR}" alt="${escapeHtml(p.name)}" />
+					<span class="opponent-name-text" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+					${isTurn ? '<span class="opponent-turn-badge">Turn</span>' : ''}
+					<span class="opponent-card-count">${p.handCount}</span>
+				</div>
+				<div class="opponent-cards">
+		`;
+		for (let c = 0; c < p.handCount; c++) {
 			html += createCardHTML(p.hand[c], false, true);
 		}
-		html += `</div></div>`;
+		html += `
+				</div>
+			</div>
+		`;
 	}
 	
 	container.innerHTML = html;

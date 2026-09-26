@@ -43,24 +43,134 @@ body {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 60px;
+  align-items: flex-start;
+  gap: 40px;
   position: relative;
+  padding-top: 15px;
+  box-sizing: border-box;
 }
 
 .pile-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .pile-label {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: bold;
   color: #888;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+.combat-center-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 140px;
+}
+
+.tavern-container .card,
+.discard-container .card {
+  width: 110px;
+  height: 160px;
+}
+
+.discard-placeholder {
+  width: 110px !important;
+  height: 160px !important;
+  border: 2px dashed rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: default !important;
+}
+.discard-placeholder .placeholder-icon {
+  font-size: 1.6rem;
+  opacity: 0.25;
+}
+.discard-placeholder:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.play-area-container {
+  min-width: 110px;
+}
+
+.played-cards-area {
+  min-width: 100px;
+  height: 145px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.played-cards-area .card {
+  width: 100px;
+  height: 145px;
+  min-width: 100px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+}
+
+.played-cards-area .card .card-top,
+.played-cards-area .card .card-bottom {
+  font-size: 1.2rem;
+}
+
+.played-cards-area .card .card-center {
+  font-size: 3rem;
+}
+
+.played-cards-area .card:not(:first-child) {
+  margin-left: -50px;
+}
+
+.played-cards-area .card:hover {
+  transform: translateY(-14px) scale(1.08);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.9);
+  border-color: var(--accent);
+  z-index: 20;
+}
+
+.played-cards-placeholder {
+  width: 100px;
+  height: 145px;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 8px;
+  user-select: none;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.played-cards-placeholder .placeholder-icon {
+  font-size: 1.5rem;
+  opacity: 0.35;
+}
+
+.played-cards-placeholder .placeholder-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .player-hand-section {
@@ -174,15 +284,27 @@ body {
   line-height: 1;
 }
 
-/* Specific larger card for the Enemy */
+/* Specific styled card for the Enemy */
 .card.enemy {
-  width: 160px;
-  height: 240px;
+  width: 130px;
+  height: 185px;
   border-color: var(--red-suit);
-  box-shadow: 0 0 20px rgba(207, 102, 121, 0.2);
+  box-shadow: 0 0 20px rgba(207, 102, 121, 0.25);
 }
-.card.enemy .card-top, .card.enemy .card-bottom { font-size: 2rem; }
-.card.enemy .card-center { font-size: 6rem; }
+.card.enemy .card-top, .card.enemy .card-bottom { font-size: 1.5rem; }
+.card.enemy .card-center { font-size: 4.2rem; }
+
+/* Jester choose player banner */
+.jester-choose-banner {
+  background: rgba(26, 24, 20, 0.95);
+  border: 1px solid #f1c40f;
+  padding: 10px 18px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(241, 196, 15, 0.25);
+  margin-bottom: 10px;
+  z-index: 25;
+}
 
 /* Discard Phase Prompt */
 .discard-prompt {
@@ -369,49 +491,116 @@ body {
 
 #opponent-hands {
   position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none;
-}
-.opponent-hand {
-  position: absolute;
+  top: 70px;
+  left: 20px;
+  width: 200px;
+  max-height: 520px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.opponent-name {
-  color: white;
-  font-weight: bold;
-  background: rgba(0,0,0,0.6);
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-.opponent-cards {
-  display: flex;
-  justify-content: center;
-}
-.opponent-cards .card {
-  transform: scale(0.6);
-  margin-left: -50px;
-}
-.opponent-cards .card:first-child {
-  margin-left: 0;
+  gap: 12px;
+  z-index: 15;
+  pointer-events: auto;
 }
 
-.hand-top {
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+.opponent-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(24, 24, 28, 0.85);
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  width: 100%;
 }
-.hand-left {
-  top: 50%;
-  left: 20px;
-  transform: translateY(-50%) rotate(90deg);
+
+.opponent-hand.active-turn {
+  border-color: var(--accent);
+  background: rgba(36, 28, 48, 0.9);
+  box-shadow: 0 0 12px rgba(187, 134, 252, 0.35);
 }
-.hand-right {
-  top: 50%;
-  right: 20px;
-  transform: translateY(-50%) rotate(-90deg);
+
+.opponent-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.opponent-name-text {
+  color: #ddd;
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.opponent-turn-badge {
+  background: var(--accent);
+  color: #121212;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.opponent-card-count {
+  font-size: 0.72rem;
+  color: #888;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.opponent-cards {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding-top: 2px;
+}
+
+.opponent-cards .card {
+  width: 32px !important;
+  height: 48px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  border-radius: 4px !important;
+  border: 1px solid #444 !important;
+  margin-left: -14px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+  cursor: default !important;
+  transform: none !important;
+  padding: 0 !important;
+}
+
+.opponent-cards .card:first-child {
+  margin-left: 0 !important;
+}
+
+.opponent-cards .card.face-down {
+  background: var(--card-back-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    #3c3c3c 3px,
+    #3c3c3c 6px
+  );
+}
+
+.opponent-cards .card:hover {
+  transform: none !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+  border-color: #444 !important;
 }
 
 /* --- LOBBY BROWSER STYLES --- */
@@ -535,13 +724,15 @@ body {
   background-color: #383838 !important;
 }
 .game-top-bar {
-  position: absolute;
-  top: 15px;
-  left: 20px;
   display: flex;
   align-items: center;
-  gap: 15px;
-  z-index: 10;
+  gap: 12px;
+  width: 100%;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  z-index: 25;
 }
 .btn-small {
   padding: 6px 12px !important;
@@ -717,26 +908,23 @@ body {
   font-weight: 600;
 }
 
-/* Revamped Enemy Stats */
+/* Enemy Stats */
 .enemy-stats {
-  position: absolute;
-  bottom: -68px;
-  width: 100%;
-  left: 0;
+  margin-top: 6px;
   text-align: center;
   color: #fff;
-  font-size: 1.05rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   pointer-events: none;
 }
 .enemy-stat-row {
   letter-spacing: 0.3px;
+  font-size: 0.92rem;
 }
 .enemy-immunity {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  margin-top: 2px;
+  margin-top: 1px;
   letter-spacing: 0.2px;
 }
 
@@ -750,10 +938,10 @@ body {
 /* --- GAME LOG PANEL --- */
 .game-log-panel {
   position: absolute;
-  top: 15px;
+  top: 70px;
   right: 20px;
-  width: 320px;
-  height: 230px;
+  width: 280px;
+  height: 250px;
   background: rgba(24, 24, 28, 0.94);
   border: 1px solid #3c3c44;
   border-radius: 10px;

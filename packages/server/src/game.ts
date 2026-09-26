@@ -48,6 +48,7 @@ export interface GameState {
 	maxHandSize: number;
 	soloJestersRemaining: number;
 	logs: GameLogEntry[];
+	playedCards: Card[];
 }
 
 export const rooms = new Map<string, GameState>();
@@ -119,6 +120,7 @@ export function createRoom(roomId: string): GameState {
 		maxHandSize: 8,
 		soloJestersRemaining: 0,
 		logs: [],
+		playedCards: [],
 	};
 	rooms.set(roomId, state);
 	return state;
@@ -144,6 +146,7 @@ export function resetRoom(roomId: string, keepPlayers: boolean = false): GameSta
 		maxHandSize: 8,
 		soloJestersRemaining: 0,
 		logs: [],
+		playedCards: [],
 	};
 	rooms.set(roomId, state);
 	return state;
@@ -196,6 +199,7 @@ export function startGame(state: GameState) {
 	state.enemies = [...kings, ...queens, ...jacks];
 	
 	state.discard = [];
+	state.playedCards = [];
 	state.activePlayerIndex = 0;
 	state.gamePhase = 'PLAY';
 	state.status = 'PLAYING';
@@ -356,8 +360,9 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 	// --- PLAY PHASE ---
 	if (!isValidCombo(selectedCards)) return;
 
+	if (!state.playedCards) state.playedCards = [];
 	cardIndices.forEach(index => {
-		state.discard.push(p.hand[index]);
+		state.playedCards.push(p.hand[index]);
 		p.hand.splice(index, 1);
 	});
 
@@ -434,6 +439,10 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 	state.currentEnemy.currentHp -= finalDamage;
 
 	if (state.currentEnemy.currentHp <= 0) {
+		if (state.playedCards && state.playedCards.length > 0) {
+			state.discard.push(...state.playedCards);
+			state.playedCards = [];
+		}
 		const defeatedEnemyCard = { rank: state.currentEnemy.rank, suit: state.currentEnemy.suit, value: state.currentEnemy.value, id: state.currentEnemy.id };
 		const enemyName = formatCard(defeatedEnemyCard);
 		if (exactKill) {
@@ -487,4 +496,7 @@ export function getMaskedState(state: GameState, playerId: string) {
 
 export function clearNewFlags(state: GameState) {
 	state.players.forEach(p => p.hand.forEach(c => { c.isNew = false; }));
+	if (state.playedCards) {
+		state.playedCards.forEach(c => { c.isNew = false; });
+	}
 }
