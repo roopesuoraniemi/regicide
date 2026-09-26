@@ -6,6 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/src/style.css" />
     <title>Regicide</title>
+    <script>
+      (function() {
+        const BASE_WIDTH = 1350;
+        const BASE_HEIGHT = 850;
+        function applyScale() {
+          const app = document.getElementById('app');
+          if (!app) return;
+          const scale = Math.min(window.innerWidth / BASE_WIDTH, window.innerHeight / BASE_HEIGHT, 1);
+          app.style.setProperty('--app-scale', scale.toString());
+        }
+        window.addEventListener('resize', applyScale);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', applyScale);
+        }
+        document.addEventListener('DOMContentLoaded', applyScale);
+      })();
+    </script>
   </head>
   <body>
     <div id="app">

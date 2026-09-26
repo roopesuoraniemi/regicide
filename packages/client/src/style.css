@@ -19,18 +19,24 @@ body {
   justify-content: center;
   align-items: center;
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
 }
 
 #app {
-  width: 100%;
-  max-width: 1350px;
-  height: 100%;
+  --app-scale: 1;
+  width: 1350px;
+  height: 850px;
+  max-width: none;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 16px 20px;
   box-sizing: border-box;
+  position: relative;
+  transform-origin: center center;
+  transform: scale(var(--app-scale, 1));
+  flex-shrink: 0;
 }
 
 .table-area {
@@ -313,21 +319,6 @@ body {
   box-shadow: none !important;
 }
 
-@media (max-width: 900px) {
-  .hand-actions-spacer {
-    display: none !important;
-  }
-  .hand-wrapper {
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-  }
-  .hand-actions {
-    width: auto;
-    flex-direction: row;
-    margin-bottom: 0;
-  }
-}
 
 .card.disabled {
   opacity: 0.4;

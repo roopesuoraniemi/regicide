@@ -40,7 +40,24 @@ if (roomParam) {
 	currentRoomId = roomParam;
 }
 
+const BASE_WIDTH = 1350;
+const BASE_HEIGHT = 850;
+
+export function updateAppScale() {
+	const app = document.querySelector<HTMLDivElement>('#app');
+	if (!app) return;
+	const scale = Math.min(window.innerWidth / BASE_WIDTH, window.innerHeight / BASE_HEIGHT, 1);
+	app.style.setProperty('--app-scale', scale.toString());
+}
+
+window.addEventListener('resize', updateAppScale);
+if (window.visualViewport) {
+	window.visualViewport.addEventListener('resize', updateAppScale);
+}
+updateAppScale();
+
 function renderStatus(message: string, isError = false, details?: string) {
+	updateAppScale();
 	const app = document.querySelector<HTMLDivElement>('#app');
 	if (!app) return;
 	app.innerHTML = `
@@ -62,6 +79,7 @@ function renderStatus(message: string, isError = false, details?: string) {
 }
 
 function renderLobbiesScreen() {
+	updateAppScale();
 	currentView = 'LOBBY_SELECT';
 	currentRoomId = null;
 	serverState = null;
@@ -511,6 +529,7 @@ function updateButtons() {
 }
 
 function renderRegicideBoard() {
+	updateAppScale();
 	const app = document.querySelector<HTMLDivElement>('#app');
 	if (!app) return;
 
