@@ -12,6 +12,13 @@ let myPlayerId = '';
 let serverState: any = null;
 let selectedCardIndices: number[] = [];
 let lobbyErrorMessage: string | null = null;
+let isLogCollapsed = false;
+
+function escapeHtml(text: string): string {
+	const div = document.createElement('div');
+	div.textContent = text;
+	return div.innerHTML;
+}
 
 // Fallback avatar (basic head silhouette base64 SVG data URI - immune to HTML attribute quoting issues)
 const DEFAULT_AVATAR = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiIGZpbGw9IiMyNjI2MjYiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjI0IiByPSIxMSIgZmlsbD0iIzg4ODg4OCIvPjxwYXRoIGQ9Ik0xNSA1MmMwLTkuNCA3LjYtMTcgMTctMTdzMTcgNy42IDE3IDE3IiBmaWxsPSIjODg4ODg4Ii8+PC9zdmc+`;
@@ -618,10 +625,33 @@ function renderRegicideBoard() {
 			<span style="font-weight: bold; color: var(--accent); font-size: 1.05rem; letter-spacing: 0.5px;">${currentLobbyName}</span>
 			<button id="btn-reset-game" class="btn-small">Reset Game</button>
 			<button id="btn-leave-game" class="btn-small">Leave Game</button>
+			<button id="btn-toggle-log" class="btn-small ${isLogCollapsed ? '' : 'btn-active'}">📜 Log ${(serverState.logs && serverState.logs.length > 0) ? `(${serverState.logs.length})` : ''}</button>
 			${immunityTag}
 		</div>
 		<div class="table-area" id="table-area"></div>
 		<div id="opponent-hands"></div>
+		<div id="game-log-panel" class="game-log-panel ${isLogCollapsed ? 'collapsed' : ''}">
+			<div class="log-header">
+				<div class="log-title">
+					<span>📜 Game Log</span>
+					<span class="log-count">${serverState.logs?.length || 0}</span>
+				</div>
+				<div class="log-actions">
+					<button id="btn-minimize-log" class="btn-log-action" title="Minimize log">−</button>
+				</div>
+			</div>
+			<div class="log-entries" id="log-entries">
+				${(serverState.logs && serverState.logs.length > 0) 
+					? serverState.logs.map((entry: any) => `
+						<div class="log-entry log-${entry.type || 'default'}">
+							<span class="log-bullet">•</span>
+							<span class="log-text">${escapeHtml(entry.text)}</span>
+						</div>
+					`).join('')
+					: `<div class="log-empty">No events yet</div>`
+				}
+			</div>
+		</div>
 		<div class="player-hand-section">
 			<div id="phase-prompt-container"></div>
 			<div class="self-player-bar">
@@ -648,6 +678,32 @@ function renderRegicideBoard() {
 		btnLeave.addEventListener('click', () => {
 			leaveLobby();
 		});
+	}
+
+	const btnToggleLog = document.getElementById('btn-toggle-log');
+	if (btnToggleLog) {
+		btnToggleLog.addEventListener('click', () => {
+			isLogCollapsed = !isLogCollapsed;
+			const panel = document.getElementById('game-log-panel');
+			if (panel) panel.classList.toggle('collapsed', isLogCollapsed);
+			btnToggleLog.classList.toggle('btn-active', !isLogCollapsed);
+		});
+	}
+
+	const btnMinimizeLog = document.getElementById('btn-minimize-log');
+	if (btnMinimizeLog) {
+		btnMinimizeLog.addEventListener('click', () => {
+			isLogCollapsed = true;
+			const panel = document.getElementById('game-log-panel');
+			const toggleBtn = document.getElementById('btn-toggle-log');
+			if (panel) panel.classList.add('collapsed');
+			if (toggleBtn) toggleBtn.classList.remove('btn-active');
+		});
+	}
+
+	const logEntries = document.getElementById('log-entries');
+	if (logEntries) {
+		logEntries.scrollTop = logEntries.scrollHeight;
 	}
 
 	updateButtons();

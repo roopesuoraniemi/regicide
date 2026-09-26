@@ -24,6 +24,13 @@ export interface Player {
 	hand: Card[];
 }
 
+export interface GameLogEntry {
+	id: string;
+	timestamp: number;
+	text: string;
+	type?: 'start' | 'play' | 'discard' | 'defeat' | 'damage' | 'enemy' | 'heal' | 'draw' | 'shield' | 'jester' | 'yield' | 'win' | 'loss';
+}
+
 export interface GameState {
 	roomId: string;
 	status: 'LOBBY' | 'PLAYING' | 'GAME_OVER_WIN' | 'GAME_OVER_LOSS';
@@ -40,9 +47,56 @@ export interface GameState {
 	immunityCanceled: boolean;
 	maxHandSize: number;
 	soloJestersRemaining: number;
+	logs: GameLogEntry[];
 }
 
 export const rooms = new Map<string, GameState>();
+
+export function suitName(suit: Suit): string {
+	switch (suit) {
+		case '♥': return 'Hearts';
+		case '♦': return 'Diamonds';
+		case '♣': return 'Clubs';
+		case '♠': return 'Spades';
+		case '★': return 'Jester';
+		default: return suit;
+	}
+}
+
+export function rankName(rank: Rank): string {
+	switch (rank) {
+		case 'A': return 'Ace';
+		case 'J': return 'Jack';
+		case 'Q': return 'Queen';
+		case 'K': return 'King';
+		case 'Joker': return 'Jester';
+		default: return rank;
+	}
+}
+
+export function formatCard(card: { rank: Rank; suit: Suit }): string {
+	if (card.rank === 'Joker') return 'Jester';
+	return `${rankName(card.rank)} of ${suitName(card.suit)}`;
+}
+
+export function formatCards(cards: Array<{ rank: Rank; suit: Suit }>): string {
+	return cards.map(c => formatCard(c)).join(', ');
+}
+
+let logCounter = 0;
+export function addLog(state: GameState, text: string, type: GameLogEntry['type'] = 'play') {
+	if (!state.logs) state.logs = [];
+	logCounter++;
+	state.logs.push({
+		id: `log-${Date.now()}-${logCounter}`,
+		timestamp: Date.now(),
+		text,
+		type,
+	});
+	if (state.logs.length > 150) {
+		state.logs.shift();
+	}
+}
 
 const suits: Suit[] = ['♥', '♦', '♣', '♠'];
 const ranks: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
@@ -64,6 +118,7 @@ export function createRoom(roomId: string): GameState {
 		immunityCanceled: false,
 		maxHandSize: 8,
 		soloJestersRemaining: 0,
+		logs: [],
 	};
 	rooms.set(roomId, state);
 	return state;
@@ -88,6 +143,7 @@ export function resetRoom(roomId: string, keepPlayers: boolean = false): GameSta
 		immunityCanceled: false,
 		maxHandSize: 8,
 		soloJestersRemaining: 0,
+		logs: [],
 	};
 	rooms.set(roomId, state);
 	return state;
@@ -145,6 +201,7 @@ export function startGame(state: GameState) {
 	state.status = 'PLAYING';
 	
 	state.players.forEach(p => p.hand = []);
+	state.logs = [];
 	
 	spawnNextEnemy(state);
 	dealCards(state);
@@ -157,6 +214,11 @@ function spawnNextEnemy(state: GameState) {
 	state.immunityCanceled = false;
 	if (!state.currentEnemy) {
 		state.status = 'GAME_OVER_WIN';
+		addLog(state, '👑 Victory! All 12 Castle Royals have been defeated!', 'win');
+	} else {
+		const enemyName = formatCard(state.currentEnemy);
+		const immunityDesc = `Immune to ${suitName(state.currentEnemy.suit)}`;
+		addLog(state, `⚔️ ${enemyName} appeared! (${state.currentEnemy.currentHp} HP, ${state.currentEnemy.attack} Attack, ${immunityDesc})`, 'enemy');
 	}
 }
 
@@ -172,7 +234,7 @@ function dealCards(state: GameState) {
 	});
 }
 
-function drawCardsForCurrent(state: GameState, amount: number) {
+function drawCardsForCurrent(state: GameState, amount: number): number {
 	// Draws cards one by one clockwise, actually Regicide says start with current player
 	let drawn = 0;
 	let currentIdx = state.activePlayerIndex;
@@ -188,6 +250,7 @@ function drawCardsForCurrent(state: GameState, amount: number) {
 		// Break if everyone is full
 		if (state.players.every(pl => pl.hand.length >= state.maxHandSize)) break;
 	}
+	return drawn;
 }
 
 function isValidCombo(cards: Card[]): boolean {
@@ -210,14 +273,19 @@ export function handleYield(state: GameState, playerId: string) {
 	const pIdx = state.players.findIndex(p => p.id === playerId);
 	if (pIdx !== state.activePlayerIndex) return;
 
+	const p = state.players[pIdx];
+	addLog(state, `${p.name} yielded turn.`, 'yield');
+
 	if (state.currentEnemy && state.currentEnemy.attack > 0) {
 		state.damageToTake = state.currentEnemy.attack;
 		state.gamePhase = 'DISCARD';
+		const enemyName = formatCard(state.currentEnemy);
+		addLog(state, `⚠️ ${enemyName} attacks for ${state.damageToTake} damage! Waiting for ${p.name} to discard.`, 'enemy');
 		
-		const p = state.players[pIdx];
 		const maxPossibleDiscard = p.hand.reduce((sum, c) => sum + c.value, 0);
 		if (maxPossibleDiscard < state.damageToTake) {
 			state.status = 'GAME_OVER_LOSS';
+			addLog(state, `💀 Defeat! ${p.name} cannot discard enough to survive ${state.damageToTake} damage.`, 'loss');
 		}
 	} else {
 		nextPlayer(state);
@@ -235,6 +303,7 @@ export function handleSoloJester(state: GameState, playerId: string) {
 	const p = state.players[pIdx];
 	while(p.hand.length > 0) state.discard.push(p.hand.pop()!);
 	dealCards(state);
+	addLog(state, `${p.name} used a Solo Jester to discard hand and draw fresh cards. (${state.soloJestersRemaining} remaining)`, 'jester');
 }
 
 function nextPlayer(state: GameState) {
@@ -249,6 +318,9 @@ export function handleChooseNextPlayer(state: GameState, playerId: string, targe
 
 	const targetIndex = state.players.findIndex(p => p.id === targetPlayerId);
 	if (targetIndex === -1) return false;
+
+	const targetPlayer = state.players[targetIndex];
+	addLog(state, `${activePlayer.name} chose ${targetPlayer.name} to take the next turn.`, 'jester');
 
 	state.activePlayerIndex = targetIndex;
 	state.gamePhase = 'PLAY';
@@ -276,6 +348,7 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 			p.hand.splice(index, 1);
 		});
 		
+		addLog(state, `${p.name} discarded ${formatCards(selectedCards)} (absorbed ${discardSum} damage).`, 'discard');
 		nextPlayer(state);
 		return;
 	}
@@ -296,6 +369,7 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 		}
 		state.damageToTake = 0;
 		state.gamePhase = 'JESTER_CHOOSE_PLAYER';
+		addLog(state, `${p.name} played Jester — enemy immunity canceled!`, 'jester');
 		return; 
 	}
 
@@ -304,43 +378,85 @@ export function handlePlayCards(state: GameState, playerId: string, cardIndices:
 	
 	const uniqueSuits = new Set(selectedCards.map(c => c.suit));
 
-	if (uniqueSuits.has('♣') && (state.immunityCanceled || state.currentEnemy.suit !== '♣')) finalDamage = baseDamage * 2; 
-	if (uniqueSuits.has('♥') && (state.immunityCanceled || state.currentEnemy.suit !== '♥')) {
-		for(let i=0; i < baseDamage && state.discard.length > 0; i++) {
-			state.deck.unshift(state.discard.shift()!);
+	if (selectedCards.length === 1) {
+		addLog(state, `${p.name} played ${formatCard(selectedCards[0])}.`, 'play');
+	} else {
+		addLog(state, `${p.name} played combo: ${formatCards(selectedCards)} (Value: ${baseDamage}).`, 'play');
+	}
+
+	if (uniqueSuits.has('♥')) {
+		if (state.immunityCanceled || state.currentEnemy.suit !== '♥') {
+			let healed = 0;
+			for (let i = 0; i < baseDamage && state.discard.length > 0; i++) {
+				state.deck.unshift(state.discard.shift()!);
+				healed++;
+			}
+			if (healed > 0) {
+				addLog(state, `♥ Hearts: Refilled ${healed} card(s) from discard into Tavern deck.`, 'heal');
+			}
+		} else {
+			addLog(state, `Enemy is immune to Hearts — Tavern deck not refilled!`, 'enemy');
 		}
 	}
-	if (uniqueSuits.has('♦') && (state.immunityCanceled || state.currentEnemy.suit !== '♦')) {
-		drawCardsForCurrent(state, baseDamage);
+
+	if (uniqueSuits.has('♦')) {
+		if (state.immunityCanceled || state.currentEnemy.suit !== '♦') {
+			const drawn = drawCardsForCurrent(state, baseDamage);
+			if (drawn > 0) {
+				addLog(state, `♦ Diamonds: Drew ${drawn} card(s) for players.`, 'draw');
+			}
+		} else {
+			addLog(state, `Enemy is immune to Diamonds — no cards drawn!`, 'enemy');
+		}
 	}
+
+	if (uniqueSuits.has('♣')) {
+		if (state.immunityCanceled || state.currentEnemy.suit !== '♣') {
+			finalDamage = baseDamage * 2;
+			addLog(state, `♣ Clubs: Attack damage doubled to ${finalDamage}!`, 'play');
+		} else {
+			addLog(state, `Enemy is immune to Clubs — damage not doubled!`, 'enemy');
+		}
+	}
+
 	if (uniqueSuits.has('♠')) {
 		state.spadesPlayedAgainstCurrentEnemy += baseDamage;
 		if (state.immunityCanceled || state.currentEnemy.suit !== '♠') {
 			state.currentShield += baseDamage;
 			state.currentEnemy.attack = Math.max(0, state.currentEnemy.originalAttack - state.currentShield);
+			addLog(state, `♠ Spades: Shielded ${baseDamage} damage (Enemy attack reduced to ${state.currentEnemy.attack}).`, 'shield');
+		} else {
+			addLog(state, `Enemy is immune to Spades — damage not shielded!`, 'enemy');
 		}
 	}
-	
+
 	const exactKill = state.currentEnemy.currentHp === finalDamage;
 	state.currentEnemy.currentHp -= finalDamage;
 
 	if (state.currentEnemy.currentHp <= 0) {
 		const defeatedEnemyCard = { rank: state.currentEnemy.rank, suit: state.currentEnemy.suit, value: state.currentEnemy.value, id: state.currentEnemy.id };
+		const enemyName = formatCard(defeatedEnemyCard);
 		if (exactKill) {
 			state.deck.push(defeatedEnemyCard);
+			addLog(state, `👑 ${p.name} defeated ${enemyName} with an exact kill! Added to Tavern deck.`, 'defeat');
 		} else {
 			state.discard.push(defeatedEnemyCard);
+			addLog(state, `💀 ${p.name} defeated ${enemyName}! Added to Discard pile.`, 'defeat');
 		}
 		spawnNextEnemy(state);
 		// Player who gets the kill takes another turn
 	} else {
+		const enemyName = formatCard(state.currentEnemy);
+		addLog(state, `Dealt ${finalDamage} damage to ${enemyName} (${state.currentEnemy.currentHp} HP remaining).`, 'damage');
 		if (state.currentEnemy.attack > 0) {
 			state.damageToTake = state.currentEnemy.attack;
 			state.gamePhase = 'DISCARD';
+			addLog(state, `⚠️ ${enemyName} attacks for ${state.damageToTake} damage! Waiting for ${p.name} to discard.`, 'enemy');
 			
 			const maxPossibleDiscard = p.hand.reduce((sum, c) => sum + c.value, 0);
 			if (maxPossibleDiscard < state.damageToTake) {
 				state.status = 'GAME_OVER_LOSS';
+				addLog(state, `💀 Defeat! ${p.name} cannot discard enough to survive ${state.damageToTake} damage.`, 'loss');
 			}
 		} else {
 			nextPlayer(state);
