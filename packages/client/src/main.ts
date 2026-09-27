@@ -20,6 +20,69 @@ function escapeHtml(text: string): string {
 	return div.innerHTML;
 }
 
+const PLAYER_LOG_COLORS = [
+	'#48dbfb', // Sky blue
+	'#feca57', // Warm amber / gold
+	'#ff9ff3', // Pastel pink
+	'#1dd1a1', // Mint emerald
+	'#a29bfe', // Lavender
+	'#ff6b6b', // Coral
+	'#54a0ff', // Royal blue
+	'#c8d6e5', // Ice blue
+];
+
+function getPlayerColor(name: string): string {
+	if (serverState?.players) {
+		const idx = serverState.players.findIndex((p: any) => p.name === name);
+		if (idx !== -1) {
+			return PLAYER_LOG_COLORS[idx % PLAYER_LOG_COLORS.length];
+		}
+	}
+	let hash = 0;
+	for (let i = 0; i < name.length; i++) {
+		hash = (hash << 5) - hash + name.charCodeAt(i);
+	}
+	return PLAYER_LOG_COLORS[Math.abs(hash) % PLAYER_LOG_COLORS.length];
+}
+
+function escapeRegex(str: string): string {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function formatLogMessage(text: string): string {
+	let escaped = escapeHtml(text);
+
+	const players: any[] = serverState?.players || [];
+	const playerNames = Array.from(new Set(players.map((p: any) => p.name).filter(Boolean)))
+		.sort((a, b) => b.length - a.length);
+
+	const playerReplacements: string[] = [];
+	playerNames.forEach((pName, i) => {
+		const escapedName = escapeHtml(pName);
+		const color = getPlayerColor(pName);
+		const token = `___PL_${i}___`;
+		playerReplacements.push(`<span class="log-player-name" style="color: ${color}; font-weight: 600;">${escapedName}</span>`);
+		const regex = new RegExp(`(?<![\\w@])(${escapeRegex(escapedName)})(?![\\w])`, 'g');
+		escaped = escaped.replace(regex, token);
+	});
+
+	// Highlight red suits (♥, ♦, Hearts, Diamonds)
+	escaped = escaped.replace(/[♥♦]/g, '<span class="suit-red">$&</span>');
+	escaped = escaped.replace(/\b(Hearts|Diamonds)\b/g, '<span class="suit-red">$1</span>');
+
+	// Highlight black suits (♠, ♣, Spades, Clubs)
+	escaped = escaped.replace(/[♠♣]/g, '<span class="suit-black">$&</span>');
+	escaped = escaped.replace(/\b(Spades|Clubs)\b/g, '<span class="suit-black">$1</span>');
+
+	// Restore player names
+	playerReplacements.forEach((rep, i) => {
+		const token = `___PL_${i}___`;
+		escaped = escaped.replaceAll(token, rep);
+	});
+
+	return escaped;
+}
+
 // Fallback avatar (basic head silhouette base64 SVG data URI - immune to HTML attribute quoting issues)
 const DEFAULT_AVATAR = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiIGZpbGw9IiMyNjI2MjYiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjI0IiByPSIxMSIgZmlsbD0iIzg4ODg4OCIvPjxwYXRoIGQ9Ik0xNSA1MmMwLTkuNCA3LjYtMTcgMTctMTdzMTcgNy42IDE3IDE3IiBmaWxsPSIjODg4ODg4Ii8+PC9zdmc+`;
 
@@ -625,7 +688,7 @@ function renderRegicideBoard() {
 			<span style="font-weight: bold; color: var(--accent); font-size: 1.05rem; letter-spacing: 0.5px;">${currentLobbyName}</span>
 			<button id="btn-reset-game" class="btn-small">Reset Game</button>
 			<button id="btn-leave-game" class="btn-small">Leave Game</button>
-			<button id="btn-toggle-log" class="btn-small ${isLogCollapsed ? '' : 'btn-active'}">📜 Log ${(serverState.logs && serverState.logs.length > 0) ? `(${serverState.logs.length})` : ''}</button>
+			<button id="btn-toggle-log" class="btn-small ${isLogCollapsed ? '' : 'btn-active'}">Log ${(serverState.logs && serverState.logs.length > 0) ? `(${serverState.logs.length})` : ''}</button>
 			${immunityTag}
 		</div>
 		<div class="table-area" id="table-area"></div>
@@ -633,7 +696,7 @@ function renderRegicideBoard() {
 		<div id="game-log-panel" class="game-log-panel ${isLogCollapsed ? 'collapsed' : ''}">
 			<div class="log-header">
 				<div class="log-title">
-					<span>📜 Game Log</span>
+					<span>Game Log</span>
 					<span class="log-count">${serverState.logs?.length || 0}</span>
 				</div>
 				<div class="log-actions">
@@ -643,9 +706,8 @@ function renderRegicideBoard() {
 			<div class="log-entries" id="log-entries">
 				${(serverState.logs && serverState.logs.length > 0) 
 					? serverState.logs.map((entry: any) => `
-						<div class="log-entry log-${entry.type || 'default'}">
-							<span class="log-bullet">•</span>
-							<span class="log-text">${escapeHtml(entry.text)}</span>
+						<div class="log-entry">
+							<div class="log-text">${formatLogMessage(entry.text)}</div>
 						</div>
 					`).join('')
 					: `<div class="log-empty">No events yet</div>`

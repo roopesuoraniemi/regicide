@@ -940,8 +940,8 @@ body {
   position: absolute;
   top: 70px;
   right: 20px;
-  width: 280px;
-  height: 250px;
+  width: 360px;
+  height: 520px;
   background: rgba(24, 24, 28, 0.94);
   border: 1px solid #3c3c44;
   border-radius: 10px;
@@ -1017,8 +1017,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 0.82rem;
-  line-height: 1.35;
+  font-size: 0.84rem;
+  line-height: 1.4;
   scroll-behavior: smooth;
 }
 
@@ -1040,112 +1040,41 @@ body {
   color: #666;
   font-style: italic;
   text-align: center;
-  margin-top: 35px;
-  font-size: 0.82rem;
+  margin-top: 60px;
+  font-size: 0.85rem;
 }
 
 .log-entry {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
   padding: 4px 8px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
   word-break: break-word;
+  transition: background-color 0.15s ease;
 }
 
 .log-entry:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.log-bullet {
-  color: #666;
-  font-size: 0.9rem;
-  line-height: 1.1;
-  flex-shrink: 0;
-  margin-top: 1px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .log-text {
   flex: 1;
-  color: #ccc;
+  color: #ddd;
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
-.log-entry.log-defeat {
-  background: rgba(241, 196, 15, 0.12);
-  border-left: 3px solid #f1c40f;
-}
-.log-entry.log-defeat .log-text {
-  color: #f1c40f;
+.log-player-name {
   font-weight: 600;
 }
 
-.log-entry.log-discard {
-  background: rgba(207, 102, 121, 0.12);
-  border-left: 3px solid #cf6679;
-}
-.log-entry.log-discard .log-text {
-  color: #ff9e9e;
-}
-
-.log-entry.log-damage .log-text {
-  color: #e0e0e0;
-}
-
-.log-entry.log-enemy {
-  border-left: 3px solid #e74c3c;
-  background: rgba(231, 76, 60, 0.09);
-}
-.log-entry.log-enemy .log-text {
-  color: #ff8585;
-}
-
-.log-entry.log-heal {
-  border-left: 3px solid #2ecc71;
-  background: rgba(46, 204, 113, 0.09);
-}
-.log-entry.log-heal .log-text {
-  color: #69f0ae;
-}
-
-.log-entry.log-draw {
-  border-left: 3px solid #3498db;
-  background: rgba(52, 152, 219, 0.09);
-}
-.log-entry.log-draw .log-text {
-  color: #70a1ff;
-}
-
-.log-entry.log-shield {
-  border-left: 3px solid #9b59b6;
-  background: rgba(155, 89, 182, 0.09);
-}
-.log-entry.log-shield .log-text {
-  color: #d1a8ff;
-}
-
-.log-entry.log-jester {
-  border-left: 3px solid #f39c12;
-  background: rgba(243, 156, 18, 0.12);
-}
-.log-entry.log-jester .log-text {
-  color: #f5cd79;
-}
-
-.log-entry.log-win {
-  background: rgba(241, 196, 15, 0.2);
-  border-left: 3px solid #f1c40f;
-}
-.log-entry.log-win .log-text {
-  color: #f1c40f;
+.suit-red {
+  color: #ff6b81;
   font-weight: bold;
 }
 
-.log-entry.log-loss {
-  background: rgba(231, 76, 60, 0.2);
-  border-left: 3px solid #e74c3c;
-}
-.log-entry.log-loss .log-text {
-  color: #ff6b6b;
+.suit-black {
+  color: #ffffff;
   font-weight: bold;
 }
